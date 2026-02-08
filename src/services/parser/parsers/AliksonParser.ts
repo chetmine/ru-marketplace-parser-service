@@ -13,7 +13,12 @@ export default class AliksonParser extends MarketPlaceParser {
         await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
         await page.waitForSelector(`.product`)
+
+        await page.screenshot({ path: `${process.cwd()}/screenshots/alikson/product-info.png` });
+
         const productContainer = page.locator(`.product`);
+
+        await page.screenshot({ path: `${process.cwd()}/screenshots/alikson/product-info-loaded.png` });
 
         return await this.parseProductInfo(page, productContainer);
     }
@@ -88,11 +93,11 @@ export default class AliksonParser extends MarketPlaceParser {
 
         await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/alikson/1.png` });
+        await page.screenshot({ path: `${process.cwd()}/screenshots/alikson/product-search.png` });
 
         await page.waitForSelector(`.category-page-new__products-list`)
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/alikson/2.png` });
+        await page.screenshot({ path: `${process.cwd()}/screenshots/alikson/product-loaded.png` });
 
         const cardsContainer = page.locator(`.category-page-new__products-list`);
         let cards = await cardsContainer.locator(`> div`).all();
