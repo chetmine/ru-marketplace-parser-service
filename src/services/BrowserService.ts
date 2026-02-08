@@ -56,6 +56,11 @@ export default class BrowserService {
                 '--disable-setuid-sandbox',
                 '--disable-web-security',
             ],
+            proxy: {
+                server: "31.59.20.176:6754",
+                username: "ocvelwkp",
+                password: "n7uheig7i838",
+            }
         });
 
         cron.schedule('* * * * *', this.cleanup.bind(this));
@@ -149,7 +154,7 @@ export default class BrowserService {
         //             : originalQuery(parameters);
         // });
 
-        context.setDefaultTimeout(5000);
+        context.setDefaultTimeout(20_000);
 
         return context;
     }

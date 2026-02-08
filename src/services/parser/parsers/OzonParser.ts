@@ -19,9 +19,11 @@ export default class OzonParser extends MarketPlaceParser {
 
         await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-        await page.waitForSelector('div[data-widget="tileGridDesktop"]', {
-            timeout: 5000,
-        });
+        await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-search.png` });
+
+        await page.waitForSelector('div[data-widget="tileGridDesktop"]');
+
+        await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-search-loaded.png` });
 
         const container = page.locator('div[data-widget="tileGridDesktop"]');
 
@@ -94,7 +96,11 @@ export default class OzonParser extends MarketPlaceParser {
 
         await page.goto(productLink, { waitUntil: 'domcontentloaded' });
 
+        await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-info.png` });
+
         const productContainer = page.locator('div[data-widget="container"]');
+
+        await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-info-loaded.png` });
 
         if (await productContainer.count() === 0) throw new Error("Product info not found. Maybe selector is invalid.");
 

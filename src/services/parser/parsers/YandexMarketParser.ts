@@ -10,13 +10,11 @@ export default class YandexMarketParser extends MarketPlaceParser {
         await this.randomDelay();
         await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/main.png` });
+        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info.png` });
 
-        await page.waitForSelector('div[data-baobab-name="main"]', {
-            timeout: 5000,
-        });
+        await page.waitForSelector('div[data-baobab-name="main"]');
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/main2.png` });
+        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info-loaded.png` });
 
         return this.parseProductInfo(page, page.locator('div[data-baobab-name="main"]'));
     }
@@ -97,13 +95,13 @@ export default class YandexMarketParser extends MarketPlaceParser {
 
         const featureValue = <string> await this.safeFetchText(
             featureElement.locator('[data-auto="product-spec"]')
-                .locator('xpath=ancestor::div[3]/following-sibling::div[1]//span')
+                .locator('xpath=ancestor::div[2]/following-sibling::div[1]//span')
                 .first()
         );
 
         return {
-            name: featureName.trim(),
-            value: featureValue.trim(),
+            name: featureName?.trim(),
+            value: featureValue?.trim(),
         };
     }
 
@@ -113,13 +111,13 @@ export default class YandexMarketParser extends MarketPlaceParser {
 
         await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-        //await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/main.png` });
+        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search.png` });
 
         await page.waitForSelector('div[data-apiary-widget-name="@marketfront/VirtualizeSerp"]', {
             timeout: 5000,
         });
 
-        //await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/main2.png` });
+        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search-loaded.png` });
 
         const container = page.locator('div[data-apiary-widget-name="@marketfront/SerpLayout"]');
         const cards = await container.locator('div[data-apiary-widget-name="@marketfront/SerpEntity"] article[data-auto="searchOrganic"]').all();
