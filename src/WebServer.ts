@@ -3,6 +3,7 @@ import {Logger} from "winston";
 import {loggerFactory} from "./utils/logger";
 import ProductRoutes from "./routes/ProductRoutes";
 import cors from 'cors'
+import ProxyRoutes from "./routes/ProxyRoutes";
 
 export interface WebServerConfig {
     port: number;
@@ -18,14 +19,16 @@ export default class WebServer {
     declare private app: express.Express;
 
     private readonly productRoutes: ProductRoutes;
+    private readonly proxyRoutes: ProxyRoutes;
 
     // @ts-ignore
-    constructor({logger, config, productRoutes}) {
+    constructor({logger, config, productRoutes, proxyRoutes}) {
         this.logger = loggerFactory(this);
 
         this.config = config;
 
         this.productRoutes = productRoutes;
+        this.proxyRoutes = proxyRoutes;
     }
 
     public init() {
@@ -53,6 +56,7 @@ export default class WebServer {
 
     private setupRoutes() {
         this.app.use(`/api/v1/product`, this.productRoutes.setupRoutes());
+        this.app.use(`/api/v1/proxy`, this.proxyRoutes.setupRoutes());
     }
 
     private setupErrorHandler() {

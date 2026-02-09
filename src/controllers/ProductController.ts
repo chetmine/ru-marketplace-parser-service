@@ -34,7 +34,8 @@ export default class ProductController {
             const product = <string> req.query?.name;
             const marketplace = req.query?.marketplace;
 
-            const id = <string>req.headers['user-agent'];
+            const id = <string>req.headers['session-id'];
+            if (!id) return res.status(400).json({error: "Session-id must be provided."});
 
             const context = await this.browserService.getContext(
                 id
@@ -66,7 +67,8 @@ export default class ProductController {
             const name = <string> req.query?.name;
             const marketplace = req.query?.marketplace;
 
-            const id = <string>req.headers['user-agent'];
+            const id = <string>req.headers['session-id'];
+            if (!id) return res.status(400).json({error: "Session-id must be provided."});
 
             const context = await this.browserService.getContext(
                 id

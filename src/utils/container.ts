@@ -12,6 +12,16 @@ import WildBerriesParser from "../services/parser/parsers/WildBerriesParser";
 import ProductAggregatorService from "../services/ProductAggregatorService";
 import ParserRegistry from "../services/parser/ParserRegistry";
 import ProductSearchService from "../services/ProductSearchService";
+import PrismaService from "../services/PrismaService";
+import ProxyDataRepo from "../repo/proxy/ProxyDataRepo";
+import ProxyRepo from "../repo/proxy/ProxyRepo";
+import ProxyService from "../services/ProxyService";
+import ProxyScheduler from "../jobs/ProxyScheduler";
+import AuthMiddleware from "../middleware/AuthMiddleware";
+import ProxyController from "../controllers/ProxyController";
+import ProxyRoutes from "../routes/ProxyRoutes";
+import { EventEmitter } from 'events'
+import ProxyHandler from "../handlers/ProxyHandler";
 
 const logger = winston.createLogger({
     format: winston.format.combine(
@@ -33,6 +43,8 @@ export function registerContainer() {
     container.register({
         logger: asValue(logger),
 
+        eventBus: asValue(new EventEmitter()),
+
         app: asClass(App).singleton(),
 
         webServer: asClass(WebServer).inject(() => ({
@@ -42,6 +54,20 @@ export function registerContainer() {
         redisClient: asClass(RedisClient).inject(() => ({
             config: redisConfig,
         })).singleton(),
+
+        authMiddleware: asClass(AuthMiddleware).singleton(),
+
+        prismaService: asClass(PrismaService).singleton(),
+
+        proxyController: asClass(ProxyController).singleton(),
+        proxyRoutes: asClass(ProxyRoutes).singleton(),
+
+        proxyDataRepo: asClass(ProxyDataRepo).singleton(),
+        proxyRepo: asClass(ProxyRepo).singleton(),
+
+        proxyService: asClass(ProxyService).singleton(),
+        proxyScheduler: asClass(ProxyScheduler).singleton(),
+        proxyHandler: asClass(ProxyHandler).singleton(),
 
         browserService: asClass(BrowserService).singleton(),
 

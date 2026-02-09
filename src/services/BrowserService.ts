@@ -7,6 +7,9 @@ import {loggerFactory} from "../utils/logger";
 import RedisClient from "../redis/RedisClient";
 import Redis from "ioredis";
 import {ChromiumUserAgentGenerator} from "../utils/ChromiumUserAgentGenerator";
+import ProxyService from "./ProxyService";
+
+import {ProxyData} from "@prisma-app/client";
 
 
 interface ContextData {
@@ -14,6 +17,8 @@ interface ContextData {
     createdAt: Date;
     lastAccessedAt: Date;
     fingerprint: ContextFingerprint;
+
+    attachedProxyData?: ProxyData;
 }
 
 interface ContextFingerprint {
@@ -26,6 +31,8 @@ interface ContextFingerprint {
 
 export default class BrowserService {
 
+    private readonly proxyService: ProxyService;
+
     declare private browser: Browser;
 
     private contexts: Map<string, ContextData> = new Map();
@@ -37,10 +44,11 @@ export default class BrowserService {
     private contextTTL: number = 30 * 60 * 1000
 
     // @ts-ignore
-    constructor({redisClient}) {
+    constructor({redisClient, proxyService}) {
         this.logger = loggerFactory(this);
 
         this.redisClient = redisClient;
+        this.proxyService = proxyService;
     }
 
     public async init(): Promise<void> {
@@ -56,11 +64,6 @@ export default class BrowserService {
                 '--disable-setuid-sandbox',
                 '--disable-web-security',
             ],
-            proxy: {
-                server: "31.59.20.176:6754",
-                username: "ocvelwkp",
-                password: "n7uheig7i838",
-            }
         });
 
         cron.schedule('* * * * *', this.cleanup.bind(this));
@@ -96,14 +99,17 @@ export default class BrowserService {
             return context;
         }
 
+        const proxyData = await this.proxyService.attachProxy(id);
+
         const fingerprint = this.generateFingerprint();
-        const context = await this.createContext(fingerprint);
+        const context = await this.createContext(fingerprint, proxyData ? proxyData : undefined);
 
         const contextData: ContextData = {
             context,
             createdAt: new Date(),
             lastAccessedAt: new Date(),
-            fingerprint
+            fingerprint,
+            attachedProxyData: proxyData ? proxyData : undefined,
         };
 
         this.contexts.set(id, contextData);
@@ -112,7 +118,8 @@ export default class BrowserService {
         return context;
     }
 
-    private async createContext(fingerprint: ContextFingerprint): Promise<BrowserContext> {
+    private async createContext(fingerprint: ContextFingerprint, proxyData?: ProxyData): Promise<BrowserContext> {
+
         return await this.configureContext(await this.browser.newContext({
             userAgent: fingerprint.userAgent,
             geolocation: fingerprint.geolocation,
@@ -126,6 +133,14 @@ export default class BrowserService {
             },
             javaScriptEnabled: true,
             ignoreHTTPSErrors: true,
+            proxy: proxyData
+                ?
+                {
+                    server: proxyData.host,
+                    username: proxyData.username ? proxyData.username : undefined,
+                    password: proxyData.password ? proxyData.password : undefined
+                }
+                : undefined,
         }));
     }
 
@@ -153,6 +168,8 @@ export default class BrowserService {
         //             ? Promise.resolve({ state: 'prompt' } as PermissionStatus)
         //             : originalQuery(parameters);
         // });
+
+
 
         context.setDefaultTimeout(20_000);
 
@@ -196,7 +213,7 @@ export default class BrowserService {
     }
 
 
-    public async save(userId: string, context: BrowserContext): Promise<void> {
+    public async save(userId: string, context: BrowserContext, proxyData?: ProxyData): Promise<void> {
         const oldContext: ContextData = await this.loadFromRedis(userId);
         if (!oldContext) throw new Error("Context must be defined in Redis.");
 
@@ -204,7 +221,8 @@ export default class BrowserService {
             context: context,
             createdAt: new Date(oldContext.createdAt),
             lastAccessedAt: new Date(),
-            fingerprint: oldContext.fingerprint
+            fingerprint: oldContext.fingerprint,
+            attachedProxyData: proxyData || oldContext.attachedProxyData,
         }
 
         await this.saveToRedis(userId, contextData);
@@ -218,7 +236,8 @@ export default class BrowserService {
                 fingerprint: data.fingerprint,
                 storageState,
                 createdAt: data.createdAt.toISOString(),
-                lastAccessedAt: data.lastAccessedAt.toISOString()
+                lastAccessedAt: data.lastAccessedAt.toISOString(),
+                attachedProxyData: data.attachedProxyData,
             };
 
             await this.redis.setex(
@@ -257,6 +276,7 @@ export default class BrowserService {
 
         for (const [userId, data] of this.contexts.entries()) {
             if (now - data.lastAccessedAt.getTime() > this.contextTTL) {
+                await this.proxyService.unattachProxy(userId);
                 await this.closeContext(userId);
             }
         }
