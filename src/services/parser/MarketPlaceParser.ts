@@ -52,7 +52,7 @@ export abstract class MarketPlaceParser {
 
     abstract fetchProducts(page: Page, product: string): Promise<ProductPreview[]>;
     abstract fetchProductInfo(page: Page, productPath: string): Promise<Product>;
-    abstract fetchAvailableFilters(productsPage: Page): Promise<any>;
+    //abstract fetchAvailableFilters(productsPage: Page): Promise<any>;
 
     public async findProduct(page: Page, productName: string, products?: Product[]): Promise<Product | null> {
         const foundProducts = products || await this.fetchProducts(page, productName);

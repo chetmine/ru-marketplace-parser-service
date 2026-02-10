@@ -5,10 +5,6 @@ export default class AliksonParser extends MarketPlaceParser {
 
     marketplaceUrl = 'https://alikson.ru'
 
-    fetchAvailableFilters(productsPage: Page): Promise<any> {
-        return Promise.resolve(undefined);
-    }
-
     async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
         await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
