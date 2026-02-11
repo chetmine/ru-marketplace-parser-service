@@ -37,7 +37,7 @@ export default class ProxyHandler {
                     proxyData,
                 );
 
-                this.logger.debug(`Replaced proxy to ${sessionId}.`);
+                this.logger.debug(`Replaced ${sessionId} proxy to ${proxyData.host}.`);
 
             } catch (e: any) {
                 this.logger.error(`Failed to replace proxy in browser context: ${e.message}`);

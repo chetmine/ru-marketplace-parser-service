@@ -7,7 +7,7 @@ import {loggerFactory} from "../utils/logger";
 import RedisClient from "../redis/RedisClient";
 import Redis from "ioredis";
 import {ChromiumUserAgentGenerator} from "../utils/ChromiumUserAgentGenerator";
-import ProxyService from "./ProxyService";
+import ProxyService, {CheckResult} from "./ProxyService";
 
 import {ProxyData} from "@prisma-app/client";
 
@@ -69,6 +69,65 @@ export default class BrowserService {
         cron.schedule('* * * * *', this.cleanup.bind(this));
 
         this.logger.info(`Successfully ran ${this.browser.browserType().name()} browser.`);
+    }
+
+
+    async checkProxies(proxiesData: ProxyData[]): Promise<{ passed: any[]; failed: any[] }> {
+        const results = await Promise.allSettled(
+            proxiesData.map((proxy) => this.checkProxy(proxy))
+        );
+
+        const checkResults = results.map(result =>
+            result.status === 'fulfilled'
+                ? result.value
+                : { proxyDataId: -1, success: false, error: 'Promise rejected' }
+        );
+
+        const failedIds = checkResults
+            .filter(r => !r.success)
+            .map(r => r.proxyDataId);
+
+        const passedIds = checkResults
+            .filter(r => r.success)
+            .map(r => r.proxyDataId);
+
+        await this.proxyService.handleFailedProxiesBatch(failedIds);
+        await this.proxyService.handlePassedProxiesBatch(passedIds);
+
+        return {
+            passed: passedIds,
+            failed: failedIds
+        }
+
+    }
+
+    private async checkProxy(proxyData: ProxyData): Promise<CheckResult> {
+        const fingerprint = this.generateFingerprint();
+        const testContext = await this.createContext(fingerprint, proxyData);
+
+        const page = await testContext.newPage();
+
+        try {
+            await page.goto('https://api.ipify.org');
+            await page.textContent('body', { timeout: 3000 });
+
+            await page.screenshot({ path: `${process.cwd()}/screenshots/proxy-check/${proxyData.host}.png` });
+
+            await testContext.close();
+
+            return {
+                proxyDataId: proxyData.id,
+                success: true
+            };
+
+        } catch (e: any) {
+
+            return {
+                proxyDataId: proxyData.id,
+                success: false,
+                error: e
+            };
+        }
     }
 
 
@@ -137,8 +196,8 @@ export default class BrowserService {
                 ?
                 {
                     server: proxyData.host,
-                    username: proxyData.username ? proxyData.username : undefined,
-                    password: proxyData.password ? proxyData.password : undefined
+                    ...(proxyData.username && { username: proxyData.username }),
+                    ...(proxyData.password && { password: proxyData.password }),
                 }
                 : undefined,
         }));
@@ -177,6 +236,13 @@ export default class BrowserService {
     }
 
     private async restoreContext(savedState: any): Promise<BrowserContext> {
+
+        const proxyData = {
+            server: savedState.attachedProxyData.host,
+            ...(savedState.attachedProxyData.username && { username: savedState.attachedProxyData.username }),
+            ...(savedState.attachedProxyData.password && { password: savedState.attachedProxyData.password }),
+        }
+
         return await this.configureContext(await this.browser.newContext({
             userAgent: savedState.fingerprint.userAgent,
             geolocation: savedState.fingerprint.geolocation,
@@ -191,6 +257,8 @@ export default class BrowserService {
             },
             javaScriptEnabled: true,
             ignoreHTTPSErrors: true,
+
+            proxy: savedState.attachedProxyData ? proxyData : undefined,
         }));
     }
 

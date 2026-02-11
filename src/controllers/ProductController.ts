@@ -43,6 +43,7 @@ export default class ProductController {
 
             const products = await this.productAggregatorService.searchProducts(
                 context,
+                id,
                 product,
                 {
                     marketplace: marketplace?.toString(),
@@ -75,6 +76,7 @@ export default class ProductController {
             );
 
             const data = await this.productAggregatorService.searchProductDetailed(
+                id,
                 context,
                 <string> name,
                 {

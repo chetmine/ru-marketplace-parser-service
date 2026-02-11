@@ -73,4 +73,12 @@ export default class ProxyRepo {
             where: { id },
         });
     }
+
+    public async deleteAll() {
+        return this.prismaService.proxy.deleteMany({})
+    }
+
+    public async updateMany(params: Prisma.ProxyUpdateManyArgs) {
+        return await this.prismaService.proxy.updateMany(params)
+    }
 }

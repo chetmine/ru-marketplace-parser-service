@@ -6,5 +6,12 @@ import {container, registerContainer} from "./utils/container";
     registerContainer();
 
     const app: App = container.resolve("app");
-    await app.init();
+
+    try {
+        await app.init();
+    } catch (e: any) {
+
+    }
+
+
 })()

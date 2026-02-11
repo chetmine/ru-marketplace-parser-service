@@ -40,6 +40,12 @@ export default class ProxyRoutes {
             , this.proxyController.removeProxy.bind(this.proxyController)
         );
 
+        router.delete(
+            "/"
+            , this.authMiddleware.middleware.bind(this.authMiddleware)
+            , this.proxyController.removeAllProxy.bind(this.proxyController)
+        );
+
         return router;
     }
 
