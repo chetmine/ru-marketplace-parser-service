@@ -9,12 +9,14 @@ export default class ProxyScheduler {
 
     private readonly proxyService: ProxyService;
     private readonly browserProxyService: BrowserProxyService;
+    private readonly browserService: BrowserService;
     private readonly logger: Logger;
 
     // @ts-ignore
-    constructor({proxyService, browserProxyService}) {
+    constructor({proxyService, browserProxyService, browserService}) {
         this.proxyService = proxyService;
         this.browserProxyService = browserProxyService;
+        this.browserService = browserService;
 
         this.logger = loggerFactory(this);
     }
@@ -42,6 +44,33 @@ export default class ProxyScheduler {
             } catch (err: any) {
                 this.logger.error(`Proxy check failed: ${err.message}`);
             }
+        });
+
+        cron.schedule('* * * * *', async () => {
+            const proxiesData = await this.proxyService.getProxiesWithId();
+
+            const results = await Promise.allSettled(
+                proxiesData.map(async (proxyData) => {
+                    const context = await this.browserService.isContextExists(<string>proxyData.sessionId);
+                    if (!context) return {
+                        id: proxyData.id,
+                        success: false,
+                    }
+
+                    return {
+                        id: proxyData.id,
+                        success: true,
+                    }
+                })
+            );
+
+            const failedResults = results.filter(r =>
+                r.status === 'fulfilled' && !r.value.success
+            );
+
+            // @ts-ignore
+            const failedIds = failedResults.map(r => r.value.id);
+            await this.proxyService.handleNotExistingSessionIdProxyBatch(failedIds);
         });
     }
 }

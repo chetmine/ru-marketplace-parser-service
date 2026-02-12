@@ -39,6 +39,28 @@ export default class ProxyService {
         this.logger = loggerFactory(this);
     }
 
+    public async getProxiesWithId(): Promise<Proxy[]> {
+        // const proxyData = await this.proxyDataRepo.findAll({
+        //     where: {
+        //         proxy: {
+        //             // @ts-ignore
+        //             some: {
+        //                 sessionId: {
+        //                     not: null
+        //                 }
+        //             }
+        //         }
+        //     }
+        // });
+
+        return this.proxyRepo.findAll({
+            where: {
+                sessionId: { not: null }
+            }
+        });
+
+    }
+
     public async getProxyById(id: number): Promise<Proxy | null> {
         return this.proxyRepo.findById(id);
     }
@@ -223,6 +245,16 @@ export default class ProxyService {
         });
     }
 
+
+    public async handleNotExistingSessionIdProxyBatch(ids: number[]): Promise<void> {
+        await this.proxyRepo.updateMany({
+            where: { id: { in: ids } },
+            data: {
+                sessionId: null
+            }
+        });
+    }
+
     public async handleFailedProxiesBatch(ids: number[]): Promise<void> {
         await this.proxyRepo.updateMany({
             where: { id: { in: ids } },
@@ -275,30 +307,6 @@ export default class ProxyService {
         //     proxyData,
         //     sessionId: freeProxy.sessionId
         // });
-    }
-
-
-    private async replaceProxy(proxy: Proxy) {
-        const consumer = proxy.sessionId;
-        if (!consumer) throw new Error(`No consumer found.`);
-
-        const freeProxy = await this.proxyRepo.findFree();
-        if (!freeProxy) throw new Error(`No free proxy found.`);
-
-        proxy.status = ProxyStatus.SUSPENDED;
-        proxy.sessionId = null;
-        freeProxy.sessionId = consumer;
-
-        await this.proxyRepo.upsert(proxy);
-        await this.proxyRepo.upsert(freeProxy);
-
-        const proxyData = await this.proxyDataRepo.findById(freeProxy.proxyDataId);
-        this.eventBus.emit("proxyService.proxy-replaced", {
-            proxyData,
-            sessionId: freeProxy.sessionId
-        });
-
-        return freeProxy;
     }
 
 

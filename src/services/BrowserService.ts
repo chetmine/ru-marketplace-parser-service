@@ -118,6 +118,11 @@ export default class BrowserService {
         return context;
     }
 
+    async isContextExists(id: string): Promise<boolean> {
+        const data = await this.redis.get(`browser_context:${id}`);
+        return !!data;
+    }
+
     public async createContext(fingerprint: ContextFingerprint, proxyData?: ProxyData): Promise<BrowserContext> {
 
         return await this.configureContext(await this.browser.newContext({
