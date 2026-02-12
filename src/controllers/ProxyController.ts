@@ -1,5 +1,5 @@
 import {Request, Response} from 'express';
-import ProxyService from "../services/ProxyService";
+import ProxyService from "../services/proxy/ProxyService";
 
 export default class ProxyController {
 

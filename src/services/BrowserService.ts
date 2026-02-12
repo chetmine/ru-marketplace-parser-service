@@ -7,9 +7,9 @@ import {loggerFactory} from "../utils/logger";
 import RedisClient from "../redis/RedisClient";
 import Redis from "ioredis";
 import {ChromiumUserAgentGenerator} from "../utils/ChromiumUserAgentGenerator";
-import ProxyService, {CheckResult} from "./ProxyService";
 
 import {ProxyData} from "@prisma-app/client";
+import ProxyService from "./proxy/ProxyService";
 
 
 interface ContextData {
@@ -72,78 +72,19 @@ export default class BrowserService {
     }
 
 
-    async checkProxies(proxiesData: ProxyData[]): Promise<{ passed: any[]; failed: any[] }> {
-        const results = await Promise.allSettled(
-            proxiesData.map((proxy) => this.checkProxy(proxy))
-        );
-
-        const checkResults = results.map(result =>
-            result.status === 'fulfilled'
-                ? result.value
-                : { proxyDataId: -1, success: false, error: 'Promise rejected' }
-        );
-
-        const failedIds = checkResults
-            .filter(r => !r.success)
-            .map(r => r.proxyDataId);
-
-        const passedIds = checkResults
-            .filter(r => r.success)
-            .map(r => r.proxyDataId);
-
-        await this.proxyService.handleFailedProxiesBatch(failedIds);
-        await this.proxyService.handlePassedProxiesBatch(passedIds);
-
-        return {
-            passed: passedIds,
-            failed: failedIds
-        }
-
-    }
-
-    private async checkProxy(proxyData: ProxyData): Promise<CheckResult> {
-        const fingerprint = this.generateFingerprint();
-        const testContext = await this.createContext(fingerprint, proxyData);
-
-        const page = await testContext.newPage();
-
-        try {
-            await page.goto('https://api.ipify.org');
-            await page.textContent('body', { timeout: 3000 });
-
-            await page.screenshot({ path: `${process.cwd()}/screenshots/proxy-check/${proxyData.host}.png` });
-
-            await testContext.close();
-
-            return {
-                proxyDataId: proxyData.id,
-                success: true
-            };
-
-        } catch (e: any) {
-
-            return {
-                proxyDataId: proxyData.id,
-                success: false,
-                error: e
-            };
-        }
-    }
-
-
     /**
      * Gets or creates context for provided id string.
      * @param {string} id
      */
 
     async getContext(id: string): Promise<BrowserContext> {
-        let existing = this.contexts.get(id);
-
-        if (existing) {
-            existing.lastAccessedAt = new Date();
-            await this.updateRedisAccess(id);
-            return existing.context;
-        }
+        // let existing = this.contexts.get(id);
+        //
+        // if (existing) {
+        //     existing.lastAccessedAt = new Date();
+        //     await this.updateRedisAccess(id);
+        //     return existing.context;
+        // }
 
         const savedState = await this.loadFromRedis(id);
 
@@ -177,7 +118,7 @@ export default class BrowserService {
         return context;
     }
 
-    private async createContext(fingerprint: ContextFingerprint, proxyData?: ProxyData): Promise<BrowserContext> {
+    public async createContext(fingerprint: ContextFingerprint, proxyData?: ProxyData): Promise<BrowserContext> {
 
         return await this.configureContext(await this.browser.newContext({
             userAgent: fingerprint.userAgent,
@@ -238,9 +179,9 @@ export default class BrowserService {
     private async restoreContext(savedState: any): Promise<BrowserContext> {
 
         const proxyData = {
-            server: savedState.attachedProxyData.host,
-            ...(savedState.attachedProxyData.username && { username: savedState.attachedProxyData.username }),
-            ...(savedState.attachedProxyData.password && { password: savedState.attachedProxyData.password }),
+            server: savedState?.attachedProxyData?.host,
+            ...(savedState?.attachedProxyData?.username && { username: savedState.attachedProxyData.username }),
+            ...(savedState?.attachedProxyData?.password && { password: savedState.attachedProxyData.password }),
         }
 
         return await this.configureContext(await this.browser.newContext({
@@ -262,7 +203,7 @@ export default class BrowserService {
         }));
     }
 
-    private generateFingerprint(): ContextFingerprint {
+    public generateFingerprint(): ContextFingerprint {
         const geolocations = [
             { latitude: 59.9311, longitude: 30.3609 },
             { latitude: 55.7558, longitude: 37.6173 },
@@ -281,7 +222,7 @@ export default class BrowserService {
     }
 
 
-    public async save(userId: string, context: BrowserContext, proxyData?: ProxyData): Promise<void> {
+    public async save(userId: string, context: BrowserContext, proxyData?: ProxyData | null): Promise<void> {
         const oldContext: ContextData = await this.loadFromRedis(userId);
         if (!oldContext) throw new Error("Context must be defined in Redis.");
 
@@ -290,7 +231,7 @@ export default class BrowserService {
             createdAt: new Date(oldContext.createdAt),
             lastAccessedAt: new Date(),
             fingerprint: oldContext.fingerprint,
-            attachedProxyData: proxyData || oldContext.attachedProxyData,
+            attachedProxyData: proxyData === null ? undefined : proxyData,
         }
 
         await this.saveToRedis(userId, contextData);

@@ -1,91 +1,73 @@
 import ParserRegistry from "./parser/ParserRegistry";
 import {MarketPlaceParser, Product, ProductPreview} from "./parser/MarketPlaceParser";
 import {BrowserContext, Page} from "playwright";
-import ProxyService from "./ProxyService";
+import ProxyService from "./proxy/ProxyService";
 import BrowserService from "./BrowserService";
-
+import BrowserContextManager from "./BrowserContextManager";
 
 
 export interface SearchProductOptions {
     marketplace?: string
 }
 
+type ParserMethod<T> = (page: Page, query: string) => Promise<T>;
+
 export default class ProductAggregatorService {
 
     private readonly parserRegistry: ParserRegistry;
-    private readonly proxyService: ProxyService;
-    private readonly browserService: BrowserService;
+    private readonly browserContextManager: BrowserContextManager;
 
     // @ts-ignore
-    constructor({parserRegistry, proxyService, browserService}) {
+    constructor({parserRegistry, browserContextManager}) {
         this.parserRegistry = parserRegistry;
-        this.proxyService = proxyService
-        this.browserService = browserService;
+
+        this.browserContextManager = browserContextManager;
     }
 
     public async searchProducts(
-        context: BrowserContext,
         id: string,
         query: string,
         options?: SearchProductOptions,
     ): Promise<ProductPreview[]> {
-        const parsers = options?.marketplace
-            ? [this.parserRegistry.getParser(options.marketplace)]
-            : this.parserRegistry.getAllParsers()
-        ;
-
-        const pages = await Promise.all(parsers.map(() => context.newPage()))
-
-        const results = await Promise.allSettled(
-            parsers.map((parser, index) => {
-                return this.fetchWithRetry(parser, pages[index], query)
-            })
+        const productsPreview = await this.executeWithRetry(
+            id,
+            async (context: BrowserContext) => {
+                return await this.executeSearch(
+                    context,
+                    query,
+                    options,
+                    (parser: MarketPlaceParser) => parser.fetchProducts.bind(parser),
+                );
+            }
         );
 
-        await this.checkForProxyErrors(id, results.filter(result => result.status === 'rejected'));
 
-        pages.forEach(page => {page.close()})
-
-        return results
-            .filter((result) => result.status === 'fulfilled')
-            .flatMap(result => result.value)
-        ;
+        return productsPreview.flat();
     }
 
     public async searchProductDetailed(
         id: string,
-        context: BrowserContext,
         query: string,
         options?: SearchProductOptions,
     ) {
-        const parsers = options?.marketplace
-            ? [this.parserRegistry.getParser(options.marketplace)]
-            : this.parserRegistry.getAllParsers()
-        ;
-        const pages = await Promise.all(parsers.map(() => context.newPage()))
-
-        const results = await Promise.allSettled(
-            parsers.map((parser, index) => {
-                return parser.findProduct(pages[index], query)
-            })
+        const products = await this.executeWithRetry(
+            id,
+            async (context: BrowserContext) => {
+                return await this.executeSearch(
+                    context,
+                    query,
+                    options,
+                    (parser: MarketPlaceParser) => parser.findProduct.bind(parser),
+                );
+            }
         );
 
-        await this.checkForProxyErrors(id, results.filter(result => result.status === 'rejected'));
-
-        const detailedProducts = results
-            .filter((result) => result.status === 'fulfilled')
-            .flatMap(result => result.value)
-        ;
-
-
-        const objectWithMostFeatures = detailedProducts.reduce((max, current) =>
+        const objectWithMostFeatures = products.reduce((max, current) =>
             // @ts-ignore
             current?.features?.length > max?.features?.length ? current : max
         );
 
-        pages.forEach(page => {page.close()})
-
-        const prices = detailedProducts
+        const prices = products
             .filter((result) => !!result)
             .map(
             (product) => {
@@ -107,21 +89,103 @@ export default class ProductAggregatorService {
         };
     }
 
-    private async checkForProxyErrors(id: string, failedResults: PromiseSettledResult<any>[]) {
+    private async executeWithRetry<T>(
+        id: string,
+        executor: (context: BrowserContext) => Promise<T>,
+    ): Promise<T> {
+        let context = await this.browserContextManager.getContext(id);
+
+        try {
+            return await executor(context);
+        } catch (error: any) {
+            if (this.isProxyError(error)) {
+                context = await this.browserContextManager.replaceProxy(id);
+                return await executor(context);
+            }
+            throw error;
+        } finally {
+            await this.browserContextManager.saveContext(id, context);
+        }
+    }
+
+    private async executeSearch<T>(
+        context: BrowserContext,
+        query: string,
+        options: SearchProductOptions | undefined,
+        getParserMethod: (parser: MarketPlaceParser) => ParserMethod<T>,
+    ): Promise<T[]> {
+        const parsers = options?.marketplace
+            ? [this.parserRegistry.getParser(options.marketplace)]
+            : this.parserRegistry.getAllParsers()
+        ;
+
+        const pages = await Promise.all(parsers.map(() => context.newPage()));
+
+        try {
+            const results = await Promise.allSettled(
+                parsers.map((parser, index) => {
+                    const method = getParserMethod(parser);
+                    return method(pages[index], query);
+                })
+            );
+
+            const failedResults = results.filter(r => r.status === 'rejected');
+            if (failedResults.length > 0 && this.hasProxyErrors(failedResults)) {
+                throw new ProxyError('Proxy connection failed');
+            }
+            if (failedResults.length === results.length) {
+                throw new AllProxyFailedError('All Proxy failed.');
+            }
+
+            return results
+                .filter((result)  => result.status === 'fulfilled')
+                .map(result => result.value)
+                ;
+        } finally {
+            await Promise.all(pages.map(page => page.close()));
+        }
+    }
+
+    private formatResponse(detailedProducts: Product[]) {
+        const objectWithMostFeatures = detailedProducts.reduce((max, current) =>
+            // @ts-ignore
+            current?.features?.length > max?.features?.length ? current : max
+        );
+
+        const prices = detailedProducts
+            .filter((result) => !!result)
+            .map((product) => ({
+                [product.marketplace]: {
+                    name: product?.name,
+                    price: product?.price,
+                    link: product?.link,
+                }
+            }));
+
+        return {
+            product: objectWithMostFeatures,
+            prices: prices,
+        };
+    }
+
+    private isProxyError(error: any): boolean {
+        return error instanceof ProxyError ||
+            error instanceof AllProxyFailedError ||
+            error?.message?.includes('ERR_TUNNEL_CONNECTION_FAILED') ||
+            error?.message?.includes('ERR_PROXY_CONNECTION_FAILED');
+    }
+
+    private hasProxyErrors(failedResults: PromiseSettledResult<any>[]) {
         const networkErrors = [
             "ERR_TUNNEL_CONNECTION_FAILED",
-            'ERR_TIMED_OUT'
+            "ERR_PROXY_CONNECTION_FAILED"
         ];
 
-        const isNetworkError = failedResults.find(
+        return failedResults.some(
             result => result.status === 'rejected' && networkErrors.some(
                 value => result.reason?.message?.includes(value)
             )
         );
-
-        if (!isNetworkError) return;
-
-        await this.proxyService.replaceProxyById(id);
     }
 
     private async fetchWithRetry(
@@ -144,5 +208,19 @@ export default class ProductAggregatorService {
         }
 
         throw lastError;
+    }
+}
+
+class ProxyError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'ProxyError';
+    }
+}
+
+class AllProxyFailedError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'AllProxyFailedError';
     }
 }

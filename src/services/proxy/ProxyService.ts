@@ -1,12 +1,12 @@
 import {Prisma, ProxyData, ProxyStatus, Proxy} from "@prisma-app/client";
-import ProxyDataRepo from "../repo/proxy/ProxyDataRepo";
+import ProxyDataRepo from "../../repo/proxy/ProxyDataRepo";
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import pLimit from 'p-limit';
 
 import axios from 'axios'
-import ProxyRepo from "../repo/proxy/ProxyRepo";
+import ProxyRepo from "../../repo/proxy/ProxyRepo";
 import {Logger} from "winston";
-import {loggerFactory} from "../utils/logger";
+import {loggerFactory} from "../../utils/logger";
 import {EventEmitter} from "events";
 
 
@@ -117,7 +117,7 @@ export default class ProxyService {
         await this.proxyRepo.upsert(proxy);
     }
 
-    public async checkAll(): Promise<{ failed: number[]; passed: number[] }> {
+    public async checkProxies(): Promise<{ failed: number[]; passed: number[] }> {
         const chunkSize = 100;
         const concurrencyLimit = 10;
         let currentChunk = 0;
@@ -189,7 +189,7 @@ export default class ProxyService {
             proxiesData.map(proxyData =>
                 limit(async (): Promise<CheckResult> => {
                     try {
-                        await this.check(proxyData);
+                        await this.checkProxy(proxyData);
                         return {
                             proxyDataId: proxyData.id,
                             success: true
@@ -212,7 +212,7 @@ export default class ProxyService {
         );
     }
 
-    private async check(proxyData: ProxyData): Promise<void> {
+    public async checkProxy(proxyData: ProxyData): Promise<void> {
         const url = this.toURL(proxyData);
         const proxyAgent = new HttpsProxyAgent(url);
 
@@ -250,7 +250,7 @@ export default class ProxyService {
         });
     }
 
-    public async replaceProxyById(sessionId: string): Promise<void> {
+    public async replaceProxyById(sessionId: string): Promise<ProxyData> {
         const proxy = await this.proxyRepo.findBySessionId(sessionId);
         if (!proxy) throw new Error(`Proxy not found.`);
 
@@ -260,15 +260,21 @@ export default class ProxyService {
         proxy.sessionId = null;
         await this.proxyRepo.upsert(proxy);
 
-        if (!freeProxy) return undefined;
+        if (!freeProxy) throw new Error(`Proxy not found.`);
         freeProxy.sessionId = sessionId;
         await this.proxyRepo.upsert(freeProxy);
 
         const proxyData = await this.proxyDataRepo.findById(freeProxy.proxyDataId);
-        this.eventBus.emit("proxyService.proxy-replaced", {
-            proxyData,
-            sessionId: freeProxy.sessionId
-        });
+        if (!proxyData) throw new Error(`Proxy not found.`);
+
+        this.logger.debug(`Replaced proxy for ${sessionId} to ${proxyData.host}.`);
+
+        return proxyData;
+
+        // this.eventBus.emit("proxyService.proxy-replaced", {
+        //     proxyData,
+        //     sessionId: freeProxy.sessionId
+        // });
     }
 
 

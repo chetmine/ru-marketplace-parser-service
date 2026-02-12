@@ -15,13 +15,15 @@ import ProductSearchService from "../services/ProductSearchService";
 import PrismaService from "../services/PrismaService";
 import ProxyDataRepo from "../repo/proxy/ProxyDataRepo";
 import ProxyRepo from "../repo/proxy/ProxyRepo";
-import ProxyService from "../services/ProxyService";
+import ProxyService from "../services/proxy/ProxyService";
 import ProxyScheduler from "../jobs/ProxyScheduler";
 import AuthMiddleware from "../middleware/AuthMiddleware";
 import ProxyController from "../controllers/ProxyController";
 import ProxyRoutes from "../routes/ProxyRoutes";
 import { EventEmitter } from 'events'
 import ProxyHandler from "../handlers/ProxyHandler";
+import BrowserProxyService from "../services/proxy/BrowserProxyService";
+import BrowserContextManager from "../services/BrowserContextManager";
 
 const logger = winston.createLogger({
     level: 'debug',
@@ -66,10 +68,12 @@ export function registerContainer() {
         proxyDataRepo: asClass(ProxyDataRepo).singleton(),
         proxyRepo: asClass(ProxyRepo).singleton(),
 
+        browserProxyService: asClass(BrowserProxyService).singleton(),
         proxyService: asClass(ProxyService).singleton(),
         proxyScheduler: asClass(ProxyScheduler).singleton(),
         proxyHandler: asClass(ProxyHandler).singleton(),
 
+        browserContextManager: asClass(BrowserContextManager).singleton(),
         browserService: asClass(BrowserService).singleton(),
 
         parserRegistry: asClass(ParserRegistry).singleton(),

@@ -13,19 +13,15 @@ export default class ProductController {
     private readonly logger: Logger;
     private readonly browserService: BrowserService;
 
-    private readonly wildberriesParser: MarketPlaceParser;
-
     private readonly productAggregatorService: ProductAggregatorService;
 
     // @ts-ignore
-    constructor({browserService, productAggregatorService, wildBerriesParser}) {
+    constructor({browserService, productAggregatorService}) {
         this.logger = loggerFactory(this);
 
         this.browserService = browserService;
 
         this.productAggregatorService = productAggregatorService;
-
-        this.wildberriesParser = wildBerriesParser;
     }
 
     public async searchProducts(req: Request, res: Response, next: NextFunction) {
@@ -42,7 +38,6 @@ export default class ProductController {
             );
 
             const products = await this.productAggregatorService.searchProducts(
-                context,
                 id,
                 product,
                 {
@@ -77,7 +72,6 @@ export default class ProductController {
 
             const data = await this.productAggregatorService.searchProductDetailed(
                 id,
-                context,
                 <string> name,
                 {
                     marketplace: marketplace?.toString(),
