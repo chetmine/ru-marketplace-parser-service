@@ -1,10 +1,8 @@
-import cron from "node-cron";
 import {Logger} from "winston";
 import {loggerFactory} from "../utils/logger";
 import ProxyService, {ProxyReplacedEvent} from "../services/proxy/ProxyService";
 import {EventEmitter} from "events";
 
-import {ProxyData} from "@prisma-app/client";
 import BrowserService from "../services/BrowserService";
 
 export default class ProxyHandler {

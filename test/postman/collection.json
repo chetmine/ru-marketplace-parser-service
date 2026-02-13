@@ -1,0 +1,104 @@
+{
+  "info": {
+    "_postman_id": "30cd4abf-21fe-4c63-962c-82d8fd10012a",
+    "name": "MarketPlace Parser",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "49111567",
+    "_collection_link": "https://go.postman.co/collection/49111567-30cd4abf-21fe-4c63-962c-82d8fd10012a?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "search products",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const { v4: uuidv4 } = require('uuid');\r",
+              "pm.collectionVariables.set('sessionId', uuidv4());"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {\r",
+              "    pm.response.to.have.status(200);\r",
+              "});\r",
+              "\r",
+              "pm.test(\"Response time is less than 1 minute\", function () {\r",
+              "    pm.expect(pm.response.responseTime).to.be.below(60000);\r",
+              "});\r",
+              "\r",
+              "console.log('SessionId:', pm.collectionVariables.get('sessionId'));"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "disabledSystemHeaders": {}
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "User-Agent",
+            "value": "Another User Agent",
+            "type": "text",
+            "disabled": true
+          },
+          {
+            "key": "session-id",
+            "value": "{{sessionId}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:1488/api/v1/product/search?name=Vivo",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "1488",
+          "path": [
+            "api",
+            "v1",
+            "product",
+            "search"
+          ],
+          "query": [
+            {
+              "key": "marketplace",
+              "value": "onlineTrade",
+              "disabled": true
+            },
+            {
+              "key": "name",
+              "value": "Vivo"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "admin-token",
+      "value": "",
+      "type": "default"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "default"
+    }
+  ]
+}

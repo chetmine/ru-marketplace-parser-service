@@ -22,6 +22,6 @@ export default class BrowserContextManager {
     }
 
     async saveContext(id: string, context: BrowserContext): Promise<void> {
-        return this.browserService.save(id, context);
+        await this.browserService.save(id, context);
     }
 }

@@ -36,6 +36,7 @@ export default class BrowserService {
     declare private browser: Browser;
 
     private contexts: Map<string, ContextData> = new Map();
+    private reservedProxy: string[] = [];
 
     private readonly logger: Logger;
     private readonly redisClient: RedisClient;
@@ -78,14 +79,6 @@ export default class BrowserService {
      */
 
     async getContext(id: string): Promise<BrowserContext> {
-        // let existing = this.contexts.get(id);
-        //
-        // if (existing) {
-        //     existing.lastAccessedAt = new Date();
-        //     await this.updateRedisAccess(id);
-        //     return existing.context;
-        // }
-
         const savedState = await this.loadFromRedis(id);
 
         if (savedState) {
@@ -112,7 +105,7 @@ export default class BrowserService {
             attachedProxyData: proxyData ? proxyData : undefined,
         };
 
-        this.contexts.set(id, contextData);
+        //this.contexts.set(id, contextData);
         await this.saveToRedis(id, contextData);
 
         return context;

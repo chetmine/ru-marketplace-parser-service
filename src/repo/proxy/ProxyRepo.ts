@@ -45,6 +45,33 @@ export default class ProxyRepo {
         });
     }
 
+    public async findFreeOptimistic(): Promise<Proxy | null> {
+        return await this.prismaService.$transaction(async transaction => {
+            const freeProxy = await transaction.proxy.findFirst({
+                where: {
+                    status: ProxyStatus.ACTIVE,
+                    sessionId: null
+                },
+            });
+            if (!freeProxy) return null;
+
+            const updated = await transaction.proxy.updateMany({
+                where: {
+                    id: freeProxy.id,
+                    version: freeProxy.version
+                },
+                data: {
+                    version: {increment: 1}
+                }
+            });
+
+            // @ts-ignore
+            if (updated?.count === 0) throw new Error("Optimistic lock failed");
+
+            return freeProxy;
+        });
+    }
+
     public async findBySessionId(sessionId: string): Promise<Proxy | null> {
         return this.prismaService.proxy.findFirst({
             where: {
@@ -78,7 +105,15 @@ export default class ProxyRepo {
         return this.prismaService.proxy.deleteMany({})
     }
 
-    public async updateMany(params: Prisma.ProxyUpdateManyArgs) {
-        return await this.prismaService.proxy.updateMany(params)
+    public async updateMany(params: any): Promise<Proxy> {
+        // @ts-ignore
+        return await this.prismaService.proxy.updateMany(params);
+    }
+
+    public async transaction<T>(
+        fn: (prismaService: PrismaService) => Promise<T>,
+    ): Promise<T> {
+        // @ts-ignore
+        return await this.prismaService.$transaction(fn);
     }
 }
