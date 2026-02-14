@@ -83,12 +83,6 @@ export default class BrowserService {
 
         if (savedState) {
             const context = await this.restoreContext(savedState);
-            this.contexts.set(id, {
-                context,
-                createdAt: new Date(savedState.createdAt),
-                lastAccessedAt: new Date(),
-                fingerprint: savedState.fingerprint
-            });
             return context;
         }
 
@@ -229,13 +223,15 @@ export default class BrowserService {
             createdAt: new Date(oldContext.createdAt),
             lastAccessedAt: new Date(),
             fingerprint: oldContext.fingerprint,
+
+            // TODO: Replace stupid save logic. Make this method to accept ContextData (with proxyData, etc...) instead of only context.
             attachedProxyData: proxyData === null ? undefined : proxyData,
         }
 
         await this.saveToRedis(userId, contextData);
     }
 
-    private async saveToRedis(userId: string, data: ContextData) {
+    private async saveToRedis(id: string, data: ContextData) {
         try {
             const storageState = await data.context.storageState();
 
@@ -248,7 +244,7 @@ export default class BrowserService {
             };
 
             await this.redis.setex(
-                `browser_context:${userId}`,
+                `browser_context:${id}`,
                 Math.floor(this.contextTTL / 1000),
                 JSON.stringify(redisData)
             );
@@ -289,12 +285,18 @@ export default class BrowserService {
         }
     }
 
-    async closeContext(userId: string) {
-        const data = this.contexts.get(userId);
-        if (data) {
-            await this.saveToRedis(userId, data);
-            await data.context.close();
-            this.contexts.delete(userId);
+    async closeContext(id: string) {
+        const context = await this.getContext(id);
+        if (context) {
+            let proxyData;
+
+            const proxy = await this.proxyService.getProxyBySessionId(id);
+            if (proxy) {
+                proxyData = await this.proxyService.getProxyData(proxy.proxyDataId);
+            }
+
+            await this.save(id, context, proxyData ? proxyData : undefined);
+            await context.close();
         }
     }
 

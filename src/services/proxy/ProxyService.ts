@@ -61,6 +61,10 @@ export default class ProxyService {
 
     }
 
+    async getProxyBySessionId(sessionId: string): Promise<Proxy | null> {
+        return this.proxyRepo.findBySessionId(sessionId);
+    }
+
     public async getProxyById(id: number): Promise<Proxy | null> {
         return this.proxyRepo.findById(id);
     }
@@ -115,12 +119,8 @@ export default class ProxyService {
         return url;
     }
 
-
-    // TODO: execute transaction here
-
     public async attachProxy(sessionId: string) {
-
-        const maxRetries = 3;
+        const maxRetries = 5;
 
         const existingProxy = await this.proxyRepo.findBySessionId(sessionId);
         if (existingProxy) return await this.proxyDataRepo.findById(existingProxy.proxyDataId);
@@ -139,30 +139,45 @@ export default class ProxyService {
                 if (!proxyData) throw new Error("Proxy Data not found");
 
                 return proxyData;
+            } catch (e: any) {
+                if (e.message === 'Optimistic lock failed' && i < maxRetries - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 100 * (i + 1)));
+                    continue;
+                }
 
-                // return await this.proxyRepo.transaction(async transaction => {
-                //     const freeProxy = await this.proxyRepo.findFree();
-                //     if (!freeProxy) return undefined;
-                //
-                //     const updated = await this.proxyRepo.updateMany({
-                //         where: {
-                //             id: freeProxy.id,
-                //             version: freeProxy.version
-                //         },
-                //         data: {
-                //             sessionId: sessionId,
-                //             version: {increment: 1}
-                //         }
-                //     });
-                //
-                //     // @ts-ignore
-                //     if (updated?.count === 0) throw new Error("Optimistic lock failed");
-                //
-                //     const proxyData = await this.proxyDataRepo.findById(freeProxy.proxyDataId);
-                //     if (!proxyData) throw new Error("Proxy Data not found");
-                //
-                //     return proxyData;
-                // });
+                this.logger.warn(`Optimistic lock failed for ${sessionId}.`);
+
+                throw e;
+            }
+        }
+    }
+
+    public async replaceProxyById(sessionId: string) {
+        const proxy = await this.proxyRepo.findBySessionId(sessionId);
+        if (!proxy) throw new Error(`Proxy not found.`);
+
+        const maxRetries = 5;
+
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                const freeProxy = await this.proxyRepo.findFreeOptimistic();
+                if (!freeProxy) throw new Error("Proxy Not Found");
+
+                proxy.status = ProxyStatus.SUSPENDED;
+                proxy.sessionId = null;
+
+                freeProxy.sessionId = sessionId;
+
+                await this.proxyRepo.upsert(proxy);
+                await this.proxyRepo.upsert(freeProxy);
+
+                const proxyData = await this.proxyDataRepo.findById(freeProxy.proxyDataId);
+                if (!proxyData) throw new Error("Proxy Data not found");
+
+                this.logger.debug(`Replaced proxy for ${sessionId} to ${proxyData.host}.`);
+
+                return proxyData;
+
             } catch (e: any) {
                 if (e.message === 'Optimistic lock failed' && i < maxRetries - 1) {
                     await new Promise(resolve => setTimeout(resolve, 100 * (i + 1)));
@@ -326,33 +341,4 @@ export default class ProxyService {
             }
         });
     }
-
-    public async replaceProxyById(sessionId: string): Promise<ProxyData> {
-        const proxy = await this.proxyRepo.findBySessionId(sessionId);
-        if (!proxy) throw new Error(`Proxy not found.`);
-
-        const freeProxy = await this.proxyRepo.findFree();
-
-        proxy.status = ProxyStatus.SUSPENDED;
-        proxy.sessionId = null;
-        await this.proxyRepo.upsert(proxy);
-
-        if (!freeProxy) throw new Error(`Proxy not found.`);
-        freeProxy.sessionId = sessionId;
-        await this.proxyRepo.upsert(freeProxy);
-
-        const proxyData = await this.proxyDataRepo.findById(freeProxy.proxyDataId);
-        if (!proxyData) throw new Error(`Proxy not found.`);
-
-        this.logger.debug(`Replaced proxy for ${sessionId} to ${proxyData.host}.`);
-
-        return proxyData;
-
-        // this.eventBus.emit("proxyService.proxy-replaced", {
-        //     proxyData,
-        //     sessionId: freeProxy.sessionId
-        // });
-    }
-
-
 }

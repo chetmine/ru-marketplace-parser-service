@@ -59,8 +59,6 @@ export default class BrowserProxyService {
             await page.goto('https://api.ipify.org');
             await page.textContent('body', { timeout: 3000 });
 
-            await testContext.close();
-
             return {
                 proxyDataId: proxyData.id,
                 success: true
@@ -73,6 +71,8 @@ export default class BrowserProxyService {
                 success: false,
                 error: e
             };
+        } finally {
+            await testContext.close();
         }
     }
 
@@ -106,8 +106,6 @@ export default class BrowserProxyService {
     }
 
     public async replaceProxy(id: string): Promise<BrowserContext> {
-
-
         let proxyData;
 
         try {
@@ -123,6 +121,10 @@ export default class BrowserProxyService {
             currentContext,
             proxyData === undefined ? null : proxyData,
         );
+
+        this.logger.debug(`Saved context ${id} with proxy ${proxyData?.host}`);
+
+        await currentContext.close();
 
         return await this.browserService.getContext(id);
     }

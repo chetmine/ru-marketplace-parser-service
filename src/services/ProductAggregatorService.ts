@@ -4,6 +4,8 @@ import {BrowserContext, Page} from "playwright";
 import ProxyService from "./proxy/ProxyService";
 import BrowserService from "./BrowserService";
 import BrowserContextManager from "./BrowserContextManager";
+import {Logger} from "winston";
+import {loggerFactory} from "../utils/logger";
 
 
 export interface SearchProductOptions {
@@ -17,11 +19,15 @@ export default class ProductAggregatorService {
     private readonly parserRegistry: ParserRegistry;
     private readonly browserContextManager: BrowserContextManager;
 
+    private readonly logger: Logger;
+
     // @ts-ignore
     constructor({parserRegistry, browserContextManager}) {
         this.parserRegistry = parserRegistry;
 
         this.browserContextManager = browserContextManager;
+
+        this.logger = loggerFactory(this);
     }
 
     public async searchProducts(
@@ -93,19 +99,31 @@ export default class ProductAggregatorService {
         id: string,
         executor: (context: BrowserContext) => Promise<T>,
     ): Promise<T> {
-        let context = await this.browserContextManager.getContext(id);
 
-        try {
-            return await executor(context);
-        } catch (error: any) {
-            if (this.isProxyError(error)) {
-                context = await this.browserContextManager.replaceProxy(id);
-                return await executor(context);
+        const maxAttempts = 3;
+
+        for (let i = 0; i < maxAttempts; i++) {
+            const context = await this.browserContextManager.getContext(id);
+
+            try {
+                const data = await executor(context);
+
+                await this.browserContextManager.saveContext(id, context);
+                return data;
+            } catch (error: any) {
+                if (this.isProxyError(error)) {
+
+                    this.logger.debug(`Proxy failed in context ${id}. Reason: ${error.message}. Retrying...`)
+
+                    await this.browserContextManager.replaceProxy(id);
+                    continue;
+                }
+                throw error;
             }
-            throw error;
-        } finally {
-            await this.browserContextManager.saveContext(id, context);
         }
+
+        this.logger.error(`Proxy failed in context ${id}. Too many attempts!`)
+        throw new Error(`Failed after ${maxAttempts} attempts due to proxy issues.`);
     }
 
     private async executeSearch<T>(

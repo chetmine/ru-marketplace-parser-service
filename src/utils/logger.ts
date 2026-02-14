@@ -4,7 +4,7 @@ export const loggerFactory = (context: any) => {
     const className = context?.constructor?.name || 'Unknown?';
 
     return createLogger({
-        level: 'debug',
+        level: 'silly',
         format: winston.format.combine(
             winston.format.colorize(),
             winston.format.timestamp({format: 'YYYY-MM-DD HH:mm:ss'}),

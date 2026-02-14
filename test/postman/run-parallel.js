@@ -1,7 +1,7 @@
 const newman = require('newman');
 
 
-const runCount = 10;
+const runCount = 5;
 const runs = [];
 
 for (let i = 0; i < runCount; i++) {

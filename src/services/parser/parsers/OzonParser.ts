@@ -1,4 +1,4 @@
-import {Browser, BrowserContext, chromium, Locator, Page} from "playwright";
+import {Locator, Page} from "playwright";
 import {MarketPlaceParser, Product, ProductFeature} from "../MarketPlaceParser";
 import ProductSearchService from "../../ProductSearchService";
 
@@ -29,17 +29,11 @@ export default class OzonParser extends MarketPlaceParser {
 
         if (await container.count() === 0) throw new Error("Product list not found. Maybe selector is invalid.")
 
-        const cards = container.locator('> div');
-        const count = await cards.count();
+        const cards = await container.locator('> div').all();
 
-        const products: Product[] = [];
-
-        for (let i = 0; i < count; i++) {
-            const card = cards.nth(i);
-            products.push(await this.parseProduct(card));
-        }
-
-        return products;
+        return await Promise.all(
+            cards.map((cardElement) => (this.parseProduct(cardElement)))
+        );
     }
 
     public async findProduct(page: Page, productName: string, products?: Product[]): Promise<Product | null> {

@@ -50,8 +50,6 @@ export default class ProductController {
                 products: products.sort((a, b) => a.price - b.price),
             });
 
-            await this.browserService.save(id, context);
-
         } catch (e: any) {
             res.status(500).json({error: e.message});
         }
@@ -82,9 +80,6 @@ export default class ProductController {
                 message: `Product received.`,
                 data: data,
             });
-
-            await this.browserService.save(id, context);
-
         } catch (e: any) {
             res.status(500).json({error: e.message});
         }
