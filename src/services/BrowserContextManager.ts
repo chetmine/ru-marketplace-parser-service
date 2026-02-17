@@ -1,4 +1,4 @@
-import BrowserService from "./BrowserService";
+import BrowserService, {ContextData} from "./BrowserService";
 import {BrowserContext} from "playwright";
 import BrowserProxyService from "./proxy/BrowserProxyService";
 import ProxyService from "./proxy/ProxyService";
@@ -17,7 +17,12 @@ export default class BrowserContextManager {
     }
 
     async getContext(id: string): Promise<BrowserContext> {
-        return this.browserService.getContext(id);
+        const contextData = await this.browserService.getContextData(id);
+        return contextData.context;
+    }
+
+    async getContextData(id: string): Promise<ContextData> {
+        return this.browserService.getContextData(id);
     }
 
 
@@ -30,15 +35,7 @@ export default class BrowserContextManager {
         return this.browserProxyService.replaceProxy(id);
     }
 
-    async saveContext(id: string, context: BrowserContext): Promise<void> {
-
-        let proxyData;
-
-        const proxy = await this.proxyService.getProxyBySessionId(id);
-        if (proxy) {
-            proxyData = await this.proxyService.getProxyData(proxy.proxyDataId);
-        }
-
-        await this.browserService.save(id, context, proxyData ? proxyData : undefined);
+    async saveContext(id: string, contextData: ContextData): Promise<void> {
+        await this.browserService.save(id, contextData);
     }
 }

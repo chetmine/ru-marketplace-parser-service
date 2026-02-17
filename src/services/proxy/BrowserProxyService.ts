@@ -80,29 +80,31 @@ export default class BrowserProxyService {
         const proxyData = await this.proxyService.attachProxy(id);
         if (!proxyData) throw Error("Failed to attach proxy");
 
-        const browserContext = await this.browserService.getContext(id);
+        const contextData = await this.browserService.getContextData(id);
+        contextData.attachedProxyData = proxyData;
 
         await this.browserService.save(
             id,
-            browserContext,
-            proxyData
+            contextData
         );
 
-        return await this.browserService.getContext(id);
+        const { context } = await this.browserService.getContextData(id);
+        return context;
     }
 
-    public async unattachProxy(id: string) {
+    public async unattachProxy(id: string): Promise<BrowserContext> {
         await this.proxyService.unattachProxy(id);
 
-        const browserContext = await this.browserService.getContext(id);
+        const contextData = await this.browserService.getContextData(id);
+        contextData.attachedProxyData = undefined;
 
         await this.browserService.save(
             id,
-            browserContext,
-            null
+            contextData
         );
 
-        return await this.browserService.getContext(id);
+        const { context } = await this.browserService.getContextData(id);
+        return context;
     }
 
     public async replaceProxy(id: string): Promise<BrowserContext> {
@@ -114,18 +116,20 @@ export default class BrowserProxyService {
             this.logger.warn(`Failed to replace proxy for ${id}. Reason: ${e.message}`);
         }
 
-        const currentContext = await this.browserService.getContext(id);
+        const contextData = await this.browserService.getContextData(id);
+
+        contextData.attachedProxyData = proxyData;
 
         await this.browserService.save(
             id,
-            currentContext,
-            proxyData === undefined ? null : proxyData,
+            contextData,
         );
 
         this.logger.debug(`Saved context ${id} with proxy ${proxyData?.host}`);
 
-        await currentContext.close();
+        await contextData.context.close();
 
-        return await this.browserService.getContext(id);
+        const { context } = await this.browserService.getContextData(id);
+        return context;
     }
 }

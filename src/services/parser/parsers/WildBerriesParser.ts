@@ -172,7 +172,10 @@ export default class WildBerriesParser extends MarketPlaceParser {
         const brandNameString = await this.safeFetchText(
             card.locator('span[class="product-card__brand"]').first()
         )
-        const productNameString = await card.locator('span[class="product-card__name"]').first().textContent({ timeout: 1000 });
+
+        const productNameString = <string> await this.safeFetchText(
+            card.locator('.product-card__name').first()
+        );
 
         const productLink = await card.locator('a[class="product-card__link j-card-link j-open-full-product-card"]').first().getAttribute('href');
         const imageLink = await card.locator('img[class="j-thumbnail"]').first().getAttribute("src");

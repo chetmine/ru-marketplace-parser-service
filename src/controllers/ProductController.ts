@@ -11,20 +11,17 @@ import ProductAggregatorService from "../services/ProductAggregatorService";
 export default class ProductController {
 
     private readonly logger: Logger;
-    private readonly browserService: BrowserService;
 
     private readonly productAggregatorService: ProductAggregatorService;
 
     // @ts-ignore
-    constructor({browserService, productAggregatorService}) {
+    constructor({productAggregatorService}) {
         this.logger = loggerFactory(this);
-
-        this.browserService = browserService;
 
         this.productAggregatorService = productAggregatorService;
     }
 
-    public async searchProducts(req: Request, res: Response, next: NextFunction) {
+    public async searchProducts(req: Request, res: Response) {
         try {
 
             const product = <string> req.query?.name;
@@ -32,10 +29,6 @@ export default class ProductController {
 
             const id = <string>req.headers['session-id'];
             if (!id) return res.status(400).json({error: "Session-id must be provided."});
-
-            const context = await this.browserService.getContext(
-                id
-            );
 
             const products = await this.productAggregatorService.searchProducts(
                 id,
@@ -55,7 +48,7 @@ export default class ProductController {
         }
     }
 
-    public async getProduct(req: Request, res: Response, next: NextFunction) {
+    public async getProduct(req: Request, res: Response) {
         try {
 
             const name = <string> req.query?.name;
@@ -63,10 +56,6 @@ export default class ProductController {
 
             const id = <string>req.headers['session-id'];
             if (!id) return res.status(400).json({error: "Session-id must be provided."});
-
-            const context = await this.browserService.getContext(
-                id
-            );
 
             const data = await this.productAggregatorService.searchProductDetailed(
                 id,

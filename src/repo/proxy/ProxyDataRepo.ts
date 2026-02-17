@@ -43,7 +43,7 @@ export default class ProxyDataRepo {
     }
 
     public async findByHost(host: string): Promise<ProxyData | null> {
-        return this.prismaService.proxyData.findUnique({
+        return this.prismaService.proxyData.findFirst({
             where: { host },
         });
     }

@@ -130,7 +130,7 @@ export default class ProxyService {
             try {
 
                 const freeProxy = await this.proxyRepo.findFreeOptimistic();
-                if (!freeProxy) throw new Error("Proxy Not Found");
+                if (!freeProxy) throw new Error("Free proxy Not Found");
 
                 freeProxy.sessionId = sessionId;
                 await this.proxyRepo.upsert(freeProxy);
@@ -140,6 +140,11 @@ export default class ProxyService {
 
                 return proxyData;
             } catch (e: any) {
+
+                if (e.message === 'Free proxy Not Found') {
+                    return undefined;
+                }
+
                 if (e.message === 'Optimistic lock failed' && i < maxRetries - 1) {
                     await new Promise(resolve => setTimeout(resolve, 100 * (i + 1)));
                     continue;

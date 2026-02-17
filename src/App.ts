@@ -14,6 +14,7 @@ import ProxyScheduler from "./jobs/ProxyScheduler";
 import ProxyHandler from "./handlers/ProxyHandler";
 import OnlineTradeParser from "./services/parser/parsers/OnlineTradeParser";
 import ExampleParser from "./services/parser/parsers/ExampleParser";
+import MegaMarketParser from "./services/parser/parsers/MegaMarketParser";
 
 export default class App {
 
@@ -56,7 +57,8 @@ export default class App {
         await this.browserService.init();
 
         this.parserRegistry.registerParser("example", ExampleParser);
-        this.parserRegistry.registerParser("onlineTrade", OnlineTradeParser);
+        // this.parserRegistry.registerParser("onlineTrade", OnlineTradeParser);
+        this.parserRegistry.registerParser("megaMarket", MegaMarketParser);
         this.parserRegistry.registerParser("alikson", AliksonParser);
         this.parserRegistry.registerParser("magnitMarket", MagnitMarketParser);
         this.parserRegistry.registerParser("yandexMarket", YandexMarketParser);

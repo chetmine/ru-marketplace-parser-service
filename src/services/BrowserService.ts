@@ -1,7 +1,7 @@
-import {faker} from '@faker-js/faker'
 import {Logger} from "winston";
-import {Browser, BrowserContext, chromium} from "playwright";
+import {Browser, BrowserContext} from "playwright";
 import cron from 'node-cron'
+import {chromium} from 'playwright-extra';
 
 import {loggerFactory} from "../utils/logger";
 import RedisClient from "../redis/RedisClient";
@@ -12,13 +12,13 @@ import {ProxyData} from "@prisma-app/client";
 import ProxyService from "./proxy/ProxyService";
 
 
-interface ContextData {
+export interface ContextData {
     context: BrowserContext;
     createdAt: Date;
     lastAccessedAt: Date;
     fingerprint: ContextFingerprint;
 
-    attachedProxyData?: ProxyData;
+    attachedProxyData?: ProxyData | null;
 }
 
 interface ContextFingerprint {
@@ -63,7 +63,7 @@ export default class BrowserService {
                 '--disable-dev-shm-usage',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-web-security',
+                // '--disable-web-security',
             ],
         });
 
@@ -78,31 +78,36 @@ export default class BrowserService {
      * @param {string} id
      */
 
-    async getContext(id: string): Promise<BrowserContext> {
+    async getContextData(id: string): Promise<ContextData> {
         const savedState = await this.loadFromRedis(id);
 
         if (savedState) {
             const context = await this.restoreContext(savedState);
-            return context;
+            savedState.lastAccessedAt = new Date();
+
+            return {
+                ...savedState,
+                context,
+            }
         }
 
         const proxyData = await this.proxyService.attachProxy(id);
 
         const fingerprint = this.generateFingerprint();
-        const context = await this.createContext(fingerprint, proxyData ? proxyData : undefined);
+        const context = await this.createContext(fingerprint, proxyData);
 
         const contextData: ContextData = {
             context,
             createdAt: new Date(),
             lastAccessedAt: new Date(),
             fingerprint,
-            attachedProxyData: proxyData ? proxyData : undefined,
+            attachedProxyData: proxyData,
         };
 
         //this.contexts.set(id, contextData);
         await this.saveToRedis(id, contextData);
 
-        return context;
+        return contextData;
     }
 
     async isContextExists(id: string): Promise<boolean> {
@@ -110,7 +115,7 @@ export default class BrowserService {
         return !!data;
     }
 
-    public async createContext(fingerprint: ContextFingerprint, proxyData?: ProxyData): Promise<BrowserContext> {
+    public async createContext(fingerprint: ContextFingerprint, proxyData?: ProxyData | null): Promise<BrowserContext> {
 
         return await this.configureContext(await this.browser.newContext({
             userAgent: fingerprint.userAgent,
@@ -205,7 +210,6 @@ export default class BrowserService {
 
         return {
             userAgent: ChromiumUserAgentGenerator.generate({ os: 'windows', mobile: false }),
-            //userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Gecko/20100101 Firefox/147.0",
             geolocation: geolocations[Math.floor(Math.random() * geolocations.length)],
             viewport: { width: 1920, height: 1080 },
             locale: 'ru-RU',
@@ -214,19 +218,9 @@ export default class BrowserService {
     }
 
 
-    public async save(userId: string, context: BrowserContext, proxyData?: ProxyData | null): Promise<void> {
-        const oldContext: ContextData = await this.loadFromRedis(userId);
+    public async save(userId: string, contextData: ContextData): Promise<void> {
+        const oldContext = await this.loadFromRedis(userId);
         if (!oldContext) throw new Error("Context must be defined in Redis.");
-
-        const contextData: ContextData = {
-            context: context,
-            createdAt: new Date(oldContext.createdAt),
-            lastAccessedAt: new Date(),
-            fingerprint: oldContext.fingerprint,
-
-            // TODO: Replace stupid save logic. Make this method to accept ContextData (with proxyData, etc...) instead of only context.
-            attachedProxyData: proxyData === null ? undefined : proxyData,
-        }
 
         await this.saveToRedis(userId, contextData);
     }
@@ -238,8 +232,8 @@ export default class BrowserService {
             const redisData = {
                 fingerprint: data.fingerprint,
                 storageState,
-                createdAt: data.createdAt.toISOString(),
-                lastAccessedAt: data.lastAccessedAt.toISOString(),
+                createdAt: data.createdAt?.toISOString(),
+                lastAccessedAt: data.lastAccessedAt?.toISOString(),
                 attachedProxyData: data.attachedProxyData,
             };
 
@@ -253,10 +247,17 @@ export default class BrowserService {
         }
     }
 
-    private async loadFromRedis(userId: string): Promise<any | null> {
+    private async loadFromRedis(userId: string): Promise<ContextData | null> {
         try {
             const data = await this.redis.get(`browser_context:${userId}`);
-            return data ? JSON.parse(data) : null;
+            const rawContextData = data ? JSON.parse(data) : null;
+
+            return {
+                ...rawContextData,
+                lastAccessedAt: new Date(rawContextData.lastAccessedAt),
+                createdAt: new Date(rawContextData.createdAt)
+            };
+
         } catch (error: any) {
             this.logger.error(`Failed to load context from Redis: ${error.message}`);
             return null;
@@ -286,16 +287,11 @@ export default class BrowserService {
     }
 
     async closeContext(id: string) {
-        const context = await this.getContext(id);
+        const contextData = await this.getContextData(id);
+        const context = contextData.context;
+
         if (context) {
-            let proxyData;
-
-            const proxy = await this.proxyService.getProxyBySessionId(id);
-            if (proxy) {
-                proxyData = await this.proxyService.getProxyData(proxy.proxyDataId);
-            }
-
-            await this.save(id, context, proxyData ? proxyData : undefined);
+            await this.save(id, contextData);
             await context.close();
         }
     }

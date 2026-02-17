@@ -103,12 +103,12 @@ export default class ProductAggregatorService {
         const maxAttempts = 3;
 
         for (let i = 0; i < maxAttempts; i++) {
-            const context = await this.browserContextManager.getContext(id);
+            const contextData = await this.browserContextManager.getContextData(id);
 
             try {
-                const data = await executor(context);
+                const data = await executor(contextData.context);
 
-                await this.browserContextManager.saveContext(id, context);
+                await this.browserContextManager.saveContext(id, contextData);
                 return data;
             } catch (error: any) {
                 if (this.isProxyError(error)) {
@@ -151,9 +151,9 @@ export default class ProductAggregatorService {
             if (failedResults.length > 0 && this.hasProxyErrors(failedResults)) {
                 throw new ProxyError('Proxy connection failed');
             }
-            if (failedResults.length === results.length) {
-                throw new AllProxyFailedError('All Proxy failed.');
-            }
+            // if (failedResults.length === results.length) {
+            //     throw new AllProxyFailedError('All Proxy failed.');
+            // }
 
             return results
                 .filter((result)  => result.status === 'fulfilled')
