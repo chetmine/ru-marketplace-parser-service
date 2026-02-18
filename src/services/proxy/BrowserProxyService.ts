@@ -22,7 +22,7 @@ export default class BrowserProxyService {
 
     public async checkProxies(proxiesData: ProxyData[]): Promise<{ passed: any[]; failed: any[] }> {
         const results = await Promise.allSettled(
-            proxiesData.map((proxy) => this.checkProxy(proxy))
+            proxiesData.map((proxyData) => this.checkProxy(proxyData))
         );
 
         const checkResults = results.map(result =>
@@ -51,7 +51,7 @@ export default class BrowserProxyService {
 
     public async checkProxy(proxyData: ProxyData): Promise<CheckResult> {
         const fingerprint = this.browserService.generateFingerprint();
-        const testContext = await this.browserService.createContext(fingerprint, proxyData);
+        const testContext = await this.browserService.createContext(fingerprint, proxyData.id);
 
         const page = await testContext.newPage();
 
@@ -81,7 +81,7 @@ export default class BrowserProxyService {
         if (!proxyData) throw Error("Failed to attach proxy");
 
         const contextData = await this.browserService.getContextData(id);
-        contextData.attachedProxyData = proxyData;
+        contextData.attachedProxyId = proxyData.id;
 
         await this.browserService.save(
             id,
@@ -96,7 +96,7 @@ export default class BrowserProxyService {
         await this.proxyService.unattachProxy(id);
 
         const contextData = await this.browserService.getContextData(id);
-        contextData.attachedProxyData = undefined;
+        contextData.attachedProxyId = undefined;
 
         await this.browserService.save(
             id,
@@ -118,7 +118,7 @@ export default class BrowserProxyService {
 
         const contextData = await this.browserService.getContextData(id);
 
-        contextData.attachedProxyData = proxyData;
+        contextData.attachedProxyId = proxyData?.id;
 
         await this.browserService.save(
             id,

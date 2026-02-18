@@ -73,7 +73,7 @@ export default class ProxyService {
         return this.proxyDataRepo.findById(id);
     }
 
-    public async getProxyDataByHost(host: string): Promise<ProxyData | null> {
+    public async getProxiesByHost(host: string): Promise<ProxyData[]> {
         return this.proxyDataRepo.findByHost(host);
     }
 

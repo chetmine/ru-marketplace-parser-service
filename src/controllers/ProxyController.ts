@@ -104,11 +104,14 @@ export default class ProxyController {
                 password,
             } = req.body;
 
-            const existingProxyData = await this.proxyService.getProxyDataByHost(host);
-            if (existingProxyData) {
-                res.status(409).json({
-                    error: 'Proxy with that host already exist.',
-                })
+            const existingProxyData = await this.proxyService.getProxiesByHost(host);
+            if (existingProxyData.length > 0) {
+                const isProxyExist = existingProxyData.some((proxyData) => proxyData.username === username);
+                if (username && isProxyExist) {
+                    return res.status(409).json({
+                        error: 'Proxy with that host already exist.',
+                    })
+                }
             }
 
             await this.proxyService.addProxyData(

@@ -1,14 +1,12 @@
 import {Logger} from "winston";
 import {Browser, BrowserContext} from "playwright";
 import cron from 'node-cron'
-import {chromium} from 'playwright-extra';
 
+import {chromium} from 'playwright-extra';
 import {loggerFactory} from "../utils/logger";
 import RedisClient from "../redis/RedisClient";
 import Redis from "ioredis";
 import {ChromiumUserAgentGenerator} from "../utils/ChromiumUserAgentGenerator";
-
-import {ProxyData} from "@prisma-app/client";
 import ProxyService from "./proxy/ProxyService";
 
 
@@ -18,7 +16,7 @@ export interface ContextData {
     lastAccessedAt: Date;
     fingerprint: ContextFingerprint;
 
-    attachedProxyData?: ProxyData | null;
+    attachedProxyId?: number | null;
 }
 
 interface ContextFingerprint {
@@ -36,7 +34,6 @@ export default class BrowserService {
     declare private browser: Browser;
 
     private contexts: Map<string, ContextData> = new Map();
-    private reservedProxy: string[] = [];
 
     private readonly logger: Logger;
     private readonly redisClient: RedisClient;
@@ -57,13 +54,13 @@ export default class BrowserService {
         this.redis = this.redisClient.getInstance();
 
         this.browser = await chromium.launch({
-            headless: true,
+            headless: false,
             args: [
                 '--disable-blink-features=AutomationControlled',
                 '--disable-dev-shm-usage',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                // '--disable-web-security',
+                '--headless=new'
             ],
         });
 
@@ -94,14 +91,14 @@ export default class BrowserService {
         const proxyData = await this.proxyService.attachProxy(id);
 
         const fingerprint = this.generateFingerprint();
-        const context = await this.createContext(fingerprint, proxyData);
+        const context = await this.createContext(fingerprint, proxyData?.id);
 
         const contextData: ContextData = {
             context,
             createdAt: new Date(),
             lastAccessedAt: new Date(),
             fingerprint,
-            attachedProxyData: proxyData,
+            attachedProxyId: proxyData?.id,
         };
 
         //this.contexts.set(id, contextData);
@@ -115,7 +112,12 @@ export default class BrowserService {
         return !!data;
     }
 
-    public async createContext(fingerprint: ContextFingerprint, proxyData?: ProxyData | null): Promise<BrowserContext> {
+    public async createContext(fingerprint: ContextFingerprint, proxyDataId?: number): Promise<BrowserContext> {
+        let proxyData;
+
+        if (proxyDataId) {
+            proxyData = await this.proxyService.getProxyData(proxyDataId);
+        }
 
         return await this.configureContext(await this.browser.newContext({
             userAgent: fingerprint.userAgent,
@@ -142,6 +144,13 @@ export default class BrowserService {
     }
 
     private async configureContext(context: BrowserContext): Promise<BrowserContext> {
+
+        // await context.addInitScript(() => {
+        //     Object.defineProperty(navigator, 'webdriver', {
+        //         get: () => '[native code]',
+        //     })
+        // })
+
         // await context.addInitScript(() => {
         //     Object.defineProperty(navigator, 'webdriver', {
         //         get: () => undefined,
@@ -200,6 +209,23 @@ export default class BrowserService {
         }));
     }
 
+    public async botTest() {
+        const fingerprint = this.generateFingerprint();
+        const testContext = await this.createContext(fingerprint);
+
+        const page = await this.browser.newPage();
+
+        await page.goto(`https://arh.antoinevastel.com/bots/`, { waitUntil: 'networkidle' });
+
+        const testResultElement = page.locator(`table[id="scanner"]`);
+        await testResultElement.scrollIntoViewIfNeeded();
+
+        await page.screenshot({ path: `${process.cwd()}/screenshots/test/bot-test-result.png` });
+
+        await page.close();
+        await testContext.close();
+    }
+
     public generateFingerprint(): ContextFingerprint {
         const geolocations = [
             { latitude: 59.9311, longitude: 30.3609 },
@@ -234,7 +260,7 @@ export default class BrowserService {
                 storageState,
                 createdAt: data.createdAt?.toISOString(),
                 lastAccessedAt: data.lastAccessedAt?.toISOString(),
-                attachedProxyData: data.attachedProxyData,
+                attachedProxyId: data.attachedProxyId,
             };
 
             await this.redis.setex(
@@ -251,6 +277,8 @@ export default class BrowserService {
         try {
             const data = await this.redis.get(`browser_context:${userId}`);
             const rawContextData = data ? JSON.parse(data) : null;
+
+            if (!rawContextData) return null;
 
             return {
                 ...rawContextData,
