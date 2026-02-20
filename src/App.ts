@@ -15,6 +15,7 @@ import ProxyHandler from "./handlers/ProxyHandler";
 import OnlineTradeParser from "./services/parser/parsers/OnlineTradeParser";
 import ExampleParser from "./services/parser/parsers/ExampleParser";
 import MegaMarketParser from "./services/parser/parsers/MegaMarketParser";
+import RabbitMQConnection from "./infrastructure/RabbitMQConnection";
 
 export default class App {
 
@@ -25,6 +26,8 @@ export default class App {
     private readonly redisClient: RedisClient;
     private readonly browserService: BrowserService;
 
+    private readonly rabbitMQConnection: RabbitMQConnection;
+
     private readonly proxyScheduler: ProxyScheduler;
     private readonly proxyHandler: ProxyHandler;
 
@@ -32,7 +35,7 @@ export default class App {
 
 
     // @ts-ignore
-    constructor({webServer, redisClient, browserService, parserRegistry, prismaService, proxyScheduler, proxyHandler}) {
+    constructor({webServer, redisClient, browserService, parserRegistry, prismaService, proxyScheduler, proxyHandler, rabbitMQConnection}) {
         this.logger = loggerFactory(this);
 
         this.prismaService = prismaService;
@@ -44,6 +47,8 @@ export default class App {
         this.proxyHandler = proxyHandler;
 
         this.parserRegistry = parserRegistry;
+
+        this.rabbitMQConnection = rabbitMQConnection;
     }
 
     public async init() {
@@ -51,15 +56,16 @@ export default class App {
         await this.prismaService.connect();
         await this.redisClient.init();
 
+        await this.rabbitMQConnection.connect();
+        await this.rabbitMQConnection.setup();
+
         this.webServer.init();
         this.webServer.start();
 
         await this.browserService.init();
 
         this.parserRegistry.registerParser("example", ExampleParser);
-        // this.parserRegistry.registerParser("onlineTrade", OnlineTradeParser);
         this.parserRegistry.registerParser("megaMarket", MegaMarketParser);
-        this.parserRegistry.registerParser("alikson", AliksonParser);
         this.parserRegistry.registerParser("magnitMarket", MagnitMarketParser);
         this.parserRegistry.registerParser("yandexMarket", YandexMarketParser);
         this.parserRegistry.registerParser("wildberries", WildBerriesParser);

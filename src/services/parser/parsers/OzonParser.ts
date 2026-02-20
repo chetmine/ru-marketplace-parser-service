@@ -7,7 +7,7 @@ export default class OzonParser extends MarketPlaceParser {
     public marketplaceUrl = "https://www.ozon.ru";
 
 
-    public async fetchProducts(page: Page, product: string): Promise<Product[]> {
+    public async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<Product[]> {
 
         const baseUrl = "https://www.ozon.ru";
         await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });

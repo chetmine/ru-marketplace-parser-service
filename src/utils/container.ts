@@ -2,7 +2,7 @@ import winston, {createLogger, level, Logger} from 'winston'
 import {asClass, asValue, createContainer, InjectionMode} from 'awilix'
 import App from "../App";
 import WebServer from "../WebServer";
-import {redisConfig, webServerConfig} from "../configs/config";
+import {rabbitMQConfig, redisConfig, webServerConfig} from "../configs/config";
 import ProductController from "../controllers/ProductController";
 import ProductRoutes from "../routes/ProductRoutes";
 import RedisClient from "../redis/RedisClient";
@@ -24,6 +24,9 @@ import { EventEmitter } from 'events'
 import ProxyHandler from "../handlers/ProxyHandler";
 import BrowserProxyService from "../services/proxy/BrowserProxyService";
 import BrowserContextManager from "../services/BrowserContextManager";
+import RabbitMQConnection from "../infrastructure/RabbitMQConnection";
+import RabbitMQPublisher from "../infrastructure/RabbitMQPublisher";
+import ParserPublisherService from "../services/parser/ParserPublisherService";
 
 const logger = winston.createLogger({
     level: 'debug',
@@ -62,6 +65,11 @@ export function registerContainer() {
 
         prismaService: asClass(PrismaService).singleton(),
 
+        rabbitMQConnection: asClass(RabbitMQConnection).inject(() => ({
+            config: rabbitMQConfig,
+        })).singleton(),
+        rabbitMQPublisher: asClass(RabbitMQPublisher).singleton(),
+
         proxyController: asClass(ProxyController).singleton(),
         proxyRoutes: asClass(ProxyRoutes).singleton(),
 
@@ -78,7 +86,7 @@ export function registerContainer() {
 
         parserRegistry: asClass(ParserRegistry).singleton(),
         productAggregatorService: asClass(ProductAggregatorService).singleton(),
-
+        parserPublisherService: asClass(ParserPublisherService).singleton(),
         //productSearchService: asClass(ProductSearchService).singleton(),
 
         ozonParser: asClass(OzonParser).singleton(),

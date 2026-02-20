@@ -47,7 +47,14 @@ export default class YandexMarketParser extends MarketPlaceParser {
 
 
         let scoresInfo;
-        const scoresString = await productContainer.locator(`a[data-auto="product-rating"]`).first().getAttribute("aria-label");
+        let scoresString;
+
+        try {
+            scoresString = await productContainer.locator(`a[data-auto="product-rating"]`).first().getAttribute("aria-label");
+        } catch (e) {
+
+        }
+
         if (scoresString) {
             const match = scoresString.match(/(\d+\.?\d*)\s*из\s*(\d+)/);
             if (match) {
@@ -105,7 +112,7 @@ export default class YandexMarketParser extends MarketPlaceParser {
         };
     }
 
-    async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
+    async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<ProductPreview[]> {
         const encoded = encodeURI(product);
         const url = `https://market.yandex.ru/search?text=${encoded}`;
 

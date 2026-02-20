@@ -3,11 +3,15 @@ import {Locator, Page} from "playwright";
 
 export default class MegaMarketParser extends MarketPlaceParser {
 
-    marketplaceUrl: string = "https://megamarket.ru/";
+    marketplaceUrl: string = "https://megamarket.ru";
 
 
     async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
         await page.goto(productPath, { waitUntil: 'load' });
+
+        await page.mouse.move(300, 300, {
+            steps: 2
+        });
 
         await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/product-info.png` });
 
@@ -69,7 +73,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
         );
 
         return {
-            name: name,
+            name: name.trim(),
             price: Number.parseInt(priceString?.replace(/\s/g, "").replace("₽", "")),
             oldPrice: Number.parseInt(<string>oldPriceString?.replace(/\s/g, "").replace("₽", "")),
             link: page.url(),
@@ -101,7 +105,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
         };
     }
 
-    async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
+    async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<ProductPreview[]> {
 
         await page.goto(this.marketplaceUrl, { waitUntil: 'load' });
 
@@ -133,7 +137,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
         await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-finished.png` });
 
-        const productCards = await page.locator(`.catalog-items-list__container > div`).all();
+        const productCards = await page.locator(`.catalog-items-list__container div[itemprop*="itemListElement"]`).all();
 
         await productCards[5]?.scrollIntoViewIfNeeded();
 

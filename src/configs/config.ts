@@ -15,3 +15,7 @@ export const redisConfig = {
 
     keyPrefix: 'marketplace-parser:',
 }
+
+export const rabbitMQConfig = {
+    url: process.env.RABBITMQ_CONNECTION_URL,
+}

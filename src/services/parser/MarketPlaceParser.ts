@@ -1,5 +1,6 @@
 import {Locator, Page} from "playwright";
 import ProductSearchService from "../ProductSearchService";
+import ParserPublisherService from "./ParserPublisherService";
 
 
 export interface ProductPreview {
@@ -48,14 +49,19 @@ export interface ProductFeature {
 }
 
 export abstract class MarketPlaceParser {
-    constructor(public marketplaceUrl: string) {}
 
-    abstract fetchProducts(page: Page, product: string): Promise<ProductPreview[]>;
+
+    // @ts-ignore
+    constructor() {
+
+    }
+
+    abstract fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<ProductPreview[]>;
     abstract fetchProductInfo(page: Page, productPath: string): Promise<Product>;
-    //abstract fetchAvailableFilters(productsPage: Page): Promise<any>;
+
 
     public async findProduct(page: Page, productName: string, products?: Product[]): Promise<Product | null> {
-        const foundProducts = products || await this.fetchProducts(page, productName);
+        const foundProducts = products || await this.fetchProducts(page, productName, false);
 
         const matchedProduct = ProductSearchService.search(productName, foundProducts);
         if (!matchedProduct) return null;

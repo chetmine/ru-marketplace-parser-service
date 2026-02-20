@@ -56,8 +56,9 @@ export default class WildBerriesParser extends MarketPlaceParser {
 
         const deliveryDate = await this.safeFetchText(
             pageContent
-                .locator('[class*="deliveryTitleWrapper--"]')
+                .locator('[class*="deliveryTitleWrapper"]')
                 .locator('span')
+                .first()
         );
 
         let scoresInfo;
@@ -126,22 +127,22 @@ export default class WildBerriesParser extends MarketPlaceParser {
         return { average, count };
     }
 
-    async fetchProducts(page: Page, product: string): Promise<Product[]> {
+    async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<Product[]> {
         await page.goto(this.marketplaceUrl, { waitUntil: 'domcontentloaded' });
         await this.randomDelay();
 
         const encoded = encodeURI(product);
         const url = `${this.marketplaceUrl}/catalog/0/search.aspx?search=${encoded}`;
 
-        await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await page.goto(url, { waitUntil: 'load' });
 
         await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-search.png` });
 
-        await page.waitForSelector('div[class="product-card-list"]');
+        await page.waitForSelector('.catalog-page__content');
 
         await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-search-loaded.png` });
 
-        const container = page.locator('div[class="product-card-list"]');
+        const container = page.locator('.catalog-page__content');
         if (await container.count() === 0) throw new Error("Product list not found. Maybe selector is invalid.")
 
         const cards = container.locator('article');

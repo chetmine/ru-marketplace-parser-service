@@ -6,6 +6,7 @@ import BrowserService from "./BrowserService";
 import BrowserContextManager from "./BrowserContextManager";
 import {Logger} from "winston";
 import {loggerFactory} from "../utils/logger";
+import ParserPublisherService from "./parser/ParserPublisherService";
 
 
 export interface SearchProductOptions {
@@ -19,13 +20,17 @@ export default class ProductAggregatorService {
     private readonly parserRegistry: ParserRegistry;
     private readonly browserContextManager: BrowserContextManager;
 
+    private readonly parserPublisherService: ParserPublisherService;
+
     private readonly logger: Logger;
 
     // @ts-ignore
-    constructor({parserRegistry, browserContextManager}) {
+    constructor({parserRegistry, browserContextManager, parserPublisherService}) {
         this.parserRegistry = parserRegistry;
 
         this.browserContextManager = browserContextManager;
+
+        this.parserPublisherService = parserPublisherService;
 
         this.logger = loggerFactory(this);
     }
@@ -39,6 +44,7 @@ export default class ProductAggregatorService {
             id,
             async (context: BrowserContext) => {
                 return await this.executeSearch(
+                    id,
                     context,
                     query,
                     options,
@@ -60,6 +66,7 @@ export default class ProductAggregatorService {
             id,
             async (context: BrowserContext) => {
                 return await this.executeSearch(
+                    id,
                     context,
                     query,
                     options,
@@ -127,6 +134,7 @@ export default class ProductAggregatorService {
     }
 
     private async executeSearch<T>(
+        sessionId: string,
         context: BrowserContext,
         query: string,
         options: SearchProductOptions | undefined,
@@ -141,9 +149,31 @@ export default class ProductAggregatorService {
 
         try {
             const results = await Promise.allSettled(
-                parsers.map((parser, index) => {
+                parsers.map(async (parser, index) => {
                     const method = getParserMethod(parser);
-                    return method(pages[index], query);
+                    const result = await method(pages[index], query);
+
+                    if (!result) return result;
+
+                    if (Array.isArray(result)) {
+                        await this.parserPublisherService.publishProductsPreview(
+                            <ProductPreview[]><unknown>result,
+                            sessionId
+                        ).catch((e: any) => {
+                            this.logger.warn(`Failed to publish result: ${e.message}`);
+                        })
+                    }
+
+                    if (typeof result === 'object') {
+                        await this.parserPublisherService.publishProductDetailed(
+                            <Product><unknown>result,
+                            sessionId
+                        ).catch((e: any) => {
+                            this.logger.warn(`Failed to publish result: ${e.message}`);
+                        })
+                    }
+
+                    return result;
                 })
             );
 

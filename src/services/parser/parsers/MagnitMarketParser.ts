@@ -1,13 +1,10 @@
 import {MarketPlaceParser, Product, ProductFeature, ProductPreview, ScoresInfo} from "../MarketPlaceParser";
 import {Locator, Page} from "playwright";
+import ParserPublisherService from "../ParserPublisherService";
 
 export default class MagnitMarketParser extends MarketPlaceParser {
+
     marketplaceUrl: string = "https://mm.ru";
-
-    fetchAvailableFilters(productsPage: Page): Promise<any> {
-        return Promise.resolve(undefined);
-    }
-
 
 
     async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
@@ -31,6 +28,7 @@ export default class MagnitMarketParser extends MarketPlaceParser {
         const products = await Promise.all(
             cards.map(this.parseProduct.bind(this))
         );
+
 
         return products;
     }
