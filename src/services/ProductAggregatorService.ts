@@ -18,6 +18,8 @@ type ParserMethod<T> = (page: Page, query: string) => Promise<T>;
 
 export default class ProductAggregatorService {
 
+    private readonly MAX_RETRY_ATTEMPTS: number;
+
     private readonly parserRegistry: ParserRegistry;
     private readonly browserContextManager: BrowserContextManager;
 
@@ -27,7 +29,7 @@ export default class ProductAggregatorService {
     private readonly logger: Logger;
 
     // @ts-ignore
-    constructor({parserRegistry, browserContextManager, parserPublisherService, sessionService}) {
+    constructor({parserRegistry, browserContextManager, parserPublisherService, sessionService, projectConfig}) {
         this.parserRegistry = parserRegistry;
 
         this.browserContextManager = browserContextManager;
@@ -36,6 +38,8 @@ export default class ProductAggregatorService {
         this.sessionService = sessionService;
 
         this.logger = loggerFactory(this);
+
+        this.MAX_RETRY_ATTEMPTS = projectConfig.FETCH_PRODUCTS_MAX_RETRY_ATTEMPTS;
     }
 
     public async searchProducts(
@@ -112,7 +116,7 @@ export default class ProductAggregatorService {
 
         if (!await this.sessionService.isAvailable(id)) throw new SessionIsBusyError("Session is already in use");
 
-        const maxAttempts = 3;
+        const maxAttempts = this.MAX_RETRY_ATTEMPTS;
 
         for (let i = 0; i < maxAttempts; i++) {
             await this.sessionService.setAsBusy(id);

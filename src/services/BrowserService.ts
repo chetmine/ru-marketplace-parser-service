@@ -211,23 +211,6 @@ export default class BrowserService {
         }));
     }
 
-    public async botTest() {
-        const fingerprint = this.generateFingerprint();
-        const testContext = await this.createContext(fingerprint);
-
-        const page = await this.browser.newPage();
-
-        await page.goto(`https://arh.antoinevastel.com/bots/`, { waitUntil: 'networkidle' });
-
-        const testResultElement = page.locator(`table[id="scanner"]`);
-        await testResultElement.scrollIntoViewIfNeeded();
-
-        await page.screenshot({ path: `${process.cwd()}/screenshots/test/bot-test-result.png` });
-
-        await page.close();
-        await testContext.close();
-    }
-
     public generateFingerprint(): ContextFingerprint {
         const geolocations = [
             { latitude: 59.9311, longitude: 30.3609 },
