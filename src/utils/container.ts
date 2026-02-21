@@ -27,6 +27,7 @@ import BrowserContextManager from "../services/BrowserContextManager";
 import RabbitMQConnection from "../infrastructure/RabbitMQConnection";
 import RabbitMQPublisher from "../infrastructure/RabbitMQPublisher";
 import ParserPublisherService from "../services/parser/ParserPublisherService";
+import SessionService from "../services/SessionService";
 
 const logger = winston.createLogger({
     level: 'debug',
@@ -83,6 +84,8 @@ export function registerContainer() {
 
         browserContextManager: asClass(BrowserContextManager).singleton(),
         browserService: asClass(BrowserService).singleton(),
+
+        sessionService: asClass(SessionService).singleton(),
 
         parserRegistry: asClass(ParserRegistry).singleton(),
         productAggregatorService: asClass(ProductAggregatorService).singleton(),

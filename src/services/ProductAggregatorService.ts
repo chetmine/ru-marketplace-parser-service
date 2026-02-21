@@ -7,6 +7,7 @@ import BrowserContextManager from "./BrowserContextManager";
 import {Logger} from "winston";
 import {loggerFactory} from "../utils/logger";
 import ParserPublisherService from "./parser/ParserPublisherService";
+import SessionService, {SessionIsBusyError} from "./SessionService";
 
 
 export interface SearchProductOptions {
@@ -21,16 +22,18 @@ export default class ProductAggregatorService {
     private readonly browserContextManager: BrowserContextManager;
 
     private readonly parserPublisherService: ParserPublisherService;
+    private readonly sessionService: SessionService;
 
     private readonly logger: Logger;
 
     // @ts-ignore
-    constructor({parserRegistry, browserContextManager, parserPublisherService}) {
+    constructor({parserRegistry, browserContextManager, parserPublisherService, sessionService}) {
         this.parserRegistry = parserRegistry;
 
         this.browserContextManager = browserContextManager;
 
         this.parserPublisherService = parserPublisherService;
+        this.sessionService = sessionService;
 
         this.logger = loggerFactory(this);
     }
@@ -107,15 +110,19 @@ export default class ProductAggregatorService {
         executor: (context: BrowserContext) => Promise<T>,
     ): Promise<T> {
 
+        if (!await this.sessionService.isAvailable(id)) throw new SessionIsBusyError("Session is already in use");
+
         const maxAttempts = 3;
 
         for (let i = 0; i < maxAttempts; i++) {
+            await this.sessionService.setAsBusy(id);
             const contextData = await this.browserContextManager.getContextData(id);
 
             try {
                 const data = await executor(contextData.context);
 
                 await this.browserContextManager.saveContext(id, contextData);
+                await this.sessionService.setAsFree(id);
                 return data;
             } catch (error: any) {
                 if (this.isProxyError(error)) {
@@ -126,6 +133,8 @@ export default class ProductAggregatorService {
                     continue;
                 }
                 throw error;
+            } finally {
+                await this.sessionService.setAsFree(id);
             }
         }
 

@@ -7,6 +7,7 @@ import BrowserService from "../services/BrowserService";
 import {MarketPlaceParser} from "../services/parser/MarketPlaceParser";
 import {faker} from "@faker-js/faker";
 import ProductAggregatorService from "../services/ProductAggregatorService";
+import {SessionIsBusyError} from "../services/SessionService";
 
 export default class ProductController {
 
@@ -44,6 +45,11 @@ export default class ProductController {
             });
 
         } catch (e: any) {
+
+            if (e instanceof SessionIsBusyError) {
+                return res.status(409).json({error: e.message});
+            }
+
             res.status(500).json({error: e.message});
         }
     }
@@ -70,6 +76,11 @@ export default class ProductController {
                 data: data,
             });
         } catch (e: any) {
+
+            if (e instanceof SessionIsBusyError) {
+                return res.status(409).json({error: e.message});
+            }
+
             res.status(500).json({error: e.message});
         }
     }
