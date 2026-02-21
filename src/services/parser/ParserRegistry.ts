@@ -3,14 +3,18 @@ import {MarketPlaceParser} from "./MarketPlaceParser";
 
 export default class ParserRegistry {
     private container: AwilixContainer;
+    private readonly config;
 
-    constructor() {
+    // @ts-ignore
+    constructor({config}) {
         this.container = createContainer();
+
+        this.config = config;
     }
 
     public registerParser(name: string, parserClass: new (...args: any[]) => MarketPlaceParser) {
         this.container.register({
-            [name]: asClass(parserClass).singleton(),
+            [name]: asClass(parserClass).inject(() => ({ config: this.config })).singleton(),
         });
     }
 

@@ -2,7 +2,7 @@ import winston, {createLogger, level, Logger} from 'winston'
 import {asClass, asValue, createContainer, InjectionMode} from 'awilix'
 import App from "../App";
 import WebServer from "../WebServer";
-import {rabbitMQConfig, redisConfig, webServerConfig} from "../configs/config";
+import {projectConfig, rabbitMQConfig, redisConfig, webServerConfig} from "../configs/config";
 import ProductController from "../controllers/ProductController";
 import ProductRoutes from "../routes/ProductRoutes";
 import RedisClient from "../redis/RedisClient";
@@ -49,6 +49,7 @@ export const container = createContainer({
 export function registerContainer() {
     container.register({
         logger: asValue(logger),
+        projectConfig: asValue(projectConfig),
 
         eventBus: asValue(new EventEmitter()),
 
@@ -87,7 +88,9 @@ export function registerContainer() {
 
         sessionService: asClass(SessionService).singleton(),
 
-        parserRegistry: asClass(ParserRegistry).singleton(),
+        parserRegistry: asClass(ParserRegistry).inject(() => ({
+            config: projectConfig
+        })).singleton(),
         productAggregatorService: asClass(ProductAggregatorService).singleton(),
         parserPublisherService: asClass(ParserPublisherService).singleton(),
         //productSearchService: asClass(ProductSearchService).singleton(),

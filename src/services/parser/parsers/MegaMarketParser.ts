@@ -5,6 +5,15 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
     marketplaceUrl: string = "https://megamarket.ru";
 
+    private readonly isSaveScreenshots: boolean;
+
+    // @ts-ignore
+    constructor({config}) {
+        super();
+
+        this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+    }
+
 
     async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
         await page.goto(productPath, { waitUntil: 'load' });
@@ -13,7 +22,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
             steps: 2
         });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/product-info.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/product-info.png` });
 
         await page.waitForSelector(`.catalog-default`);
         const productContainer = page.locator('.catalog-default article').first();
@@ -25,7 +34,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
         await this.randomDelay(200, 600);
         await allFeaturesRefererButton.click();
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/show-all-features-button-clicked.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/show-all-features-button-clicked.png` });
 
         return await this.parseProductInfo(page, productContainer);
     }
@@ -109,14 +118,14 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
         await page.goto(this.marketplaceUrl, { waitUntil: 'load' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/main-page.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/main-page.png` });
 
         const openSearchTabElement = page.locator(`div[class*="desktop-navigation-tabs__item_search"]`);
         await openSearchTabElement.focus();
         await this.randomDelay(10, 40)
         await openSearchTabElement.click();
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-tab-opened.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-tab-opened.png` });
 
         const textArea = page.locator(`textarea[class*="search-input__textarea"]`);
 
@@ -125,17 +134,17 @@ export default class MegaMarketParser extends MarketPlaceParser {
         await this.randomDelay(200, 500);
         await textArea.fill(product);
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/input-filled.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/input-filled.png` });
 
         await this.randomDelay(50, 200);
         await page.keyboard.press("Enter");
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-started.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-started.png` });
 
         await page.waitForSelector(`.catalog-items-list__container`)
         await page.waitForSelector(`.catalog-items-list__container > div`)
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-finished.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-finished.png` });
 
         const productCards = await page.locator(`.catalog-items-list__container div[itemprop*="itemListElement"]`).all();
 

@@ -8,14 +8,23 @@ import ProductSearchService from "../../ProductSearchService";
 export default class WildBerriesParser extends MarketPlaceParser {
     marketplaceUrl: string = "https://www.wildberries.ru";
 
+    private readonly isSaveScreenshots: boolean;
+
+    // @ts-ignore
+    constructor({config}) {
+        super();
+
+        this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+    }
+
     public async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
         await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-info.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-info.png` });
 
         await page.waitForSelector('.product-page');
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-info-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-info-loaded.png` });
 
         const pageContentElement = page.locator('[class*="productPageContent--"]')
 
@@ -136,11 +145,11 @@ export default class WildBerriesParser extends MarketPlaceParser {
 
         await page.goto(url, { waitUntil: 'load' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-search.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-search.png` });
 
         await page.waitForSelector('.catalog-page__content');
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-search-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-search-loaded.png` });
 
         const container = page.locator('.catalog-page__content');
         if (await container.count() === 0) throw new Error("Product list not found. Maybe selector is invalid.")
@@ -204,7 +213,4 @@ export default class WildBerriesParser extends MarketPlaceParser {
         }
     }
 
-    fetchAvailableFilters(productsPage: Page): Promise<any> {
-        return Promise.resolve(undefined);
-    }
 }

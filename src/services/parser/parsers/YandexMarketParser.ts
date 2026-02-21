@@ -5,16 +5,25 @@ import process from "node:process";
 export default class YandexMarketParser extends MarketPlaceParser {
     marketplaceUrl: string = "https://market.yandex.ru";
 
+    private readonly isSaveScreenshots: boolean;
+
+    // @ts-ignore
+    constructor({config}) {
+        super();
+
+        this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+    }
+
     //@ts-ignore
     async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
         await this.randomDelay();
         await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info.png` });
 
         await page.waitForSelector('div[data-baobab-name="main"]');
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info-loaded.png` });
 
         return this.parseProductInfo(page, page.locator('div[data-baobab-name="main"]'));
     }
@@ -118,13 +127,13 @@ export default class YandexMarketParser extends MarketPlaceParser {
 
         await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search.png` });
 
         await page.waitForSelector('div[data-apiary-widget-name="@marketfront/VirtualizeSerp"]', {
             timeout: 5000,
         });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search-loaded.png` });
 
         const container = page.locator('div[data-apiary-widget-name="@marketfront/SerpLayout"]');
         const cards = await container.locator('div[data-apiary-widget-name="@marketfront/SerpEntity"] article[data-auto="searchOrganic"]').all();

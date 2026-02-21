@@ -7,7 +7,10 @@ export default class SessionService {
     private readonly REDIS_KEY = "sessions:";
 
     // @ts-ignore
-    constructor({redisClient}) {
+    constructor({redisClient, projectConfig}) {
+
+        this.MAX_REQUESTS_PER_SESSION = projectConfig.MAX_REQUESTS_PER_SESSION;
+
         this.redisClient = redisClient;
     }
 

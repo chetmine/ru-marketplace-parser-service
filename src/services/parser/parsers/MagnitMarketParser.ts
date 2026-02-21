@@ -4,8 +4,16 @@ import ParserPublisherService from "../ParserPublisherService";
 
 export default class MagnitMarketParser extends MarketPlaceParser {
 
-    marketplaceUrl: string = "https://mm.ru";
+    private readonly isSaveScreenshots: boolean;
 
+    // @ts-ignore
+    constructor({config}) {
+        super();
+
+        this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+    }
+
+    marketplaceUrl: string = "https://mm.ru";
 
     async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
         await page.goto(this.marketplaceUrl, { waitUntil: 'domcontentloaded' });
@@ -16,11 +24,11 @@ export default class MagnitMarketParser extends MarketPlaceParser {
 
         await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-search-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-search-loaded.png` });
 
         await page.waitForSelector(".products-list");
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-search-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-search-loaded.png` });
 
         const cards = await page.locator('div[class*="product-card-"]').all();
         cards.splice(10);
@@ -73,11 +81,11 @@ export default class MagnitMarketParser extends MarketPlaceParser {
 
         await page.waitForSelector(".product-body");
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-info.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-info.png` });
 
         const productContainer = page.locator('.product-body');
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-info-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-info-loaded.png` });
 
         return await this.parseProductInfo(page, productContainer);
     }

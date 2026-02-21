@@ -8,12 +8,9 @@ import WildBerriesParser from "./services/parser/parsers/WildBerriesParser";
 import OzonParser from "./services/parser/parsers/OzonParser";
 import YandexMarketParser from "./services/parser/parsers/YandexMarketParser";
 import MagnitMarketParser from "./services/parser/parsers/MagnitMarketParser";
-import AliksonParser from "./services/parser/parsers/AliksonParser";
 import PrismaService from "./services/PrismaService";
 import ProxyScheduler from "./jobs/ProxyScheduler";
 import ProxyHandler from "./handlers/ProxyHandler";
-import OnlineTradeParser from "./services/parser/parsers/OnlineTradeParser";
-import ExampleParser from "./services/parser/parsers/ExampleParser";
 import MegaMarketParser from "./services/parser/parsers/MegaMarketParser";
 import RabbitMQConnection from "./infrastructure/RabbitMQConnection";
 
@@ -64,7 +61,6 @@ export default class App {
 
         await this.browserService.init();
 
-        this.parserRegistry.registerParser("example", ExampleParser);
         this.parserRegistry.registerParser("megaMarket", MegaMarketParser);
         this.parserRegistry.registerParser("magnitMarket", MagnitMarketParser);
         this.parserRegistry.registerParser("yandexMarket", YandexMarketParser);

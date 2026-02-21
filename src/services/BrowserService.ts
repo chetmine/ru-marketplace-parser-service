@@ -39,11 +39,13 @@ export default class BrowserService {
     private readonly redisClient: RedisClient;
 
     declare private redis: Redis;
-    private contextTTL: number = 10 * 60 * 1000
+    private readonly contextTTL: number;
 
     // @ts-ignore
-    constructor({redisClient, proxyService}) {
+    constructor({redisClient, proxyService, projectConfig}) {
         this.logger = loggerFactory(this);
+
+        this.contextTTL = proxyService.CONTEXT_DATA_TTL;
 
         this.redisClient = redisClient;
         this.proxyService = proxyService;
