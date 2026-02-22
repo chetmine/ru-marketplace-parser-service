@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "bun test"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.2.0",

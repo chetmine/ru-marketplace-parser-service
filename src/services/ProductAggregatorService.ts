@@ -66,10 +66,12 @@ export default class ProductAggregatorService {
         ;
 
 
-        const objectWithMostFeatures = detailedProducts.reduce((max, current) =>
-            // @ts-ignore
-            current?.features?.length > max?.features?.length ? current : max
-        );
+        const objectWithMostFeatures = detailedProducts.length > 0
+            ? detailedProducts.reduce((max, current) =>
+                // @ts-ignore
+                (current?.features?.length || 0) > (max?.features?.length || 0) ? current : max
+            )
+            : undefined;
 
         pages.forEach(page => {page.close()})
 
