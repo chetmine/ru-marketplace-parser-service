@@ -82,10 +82,12 @@ export default class ProductAggregatorService {
             }
         );
 
-        const objectWithMostFeatures = products.reduce((max, current) =>
-            // @ts-ignore
-            current?.features?.length > max?.features?.length ? current : max
-        );
+        const objectWithMostFeatures = products.length > 0
+            ? products.reduce((max, current) =>
+                // @ts-ignore
+                (current?.features?.length || 0) > (max?.features?.length || 0) ? current : max
+            )
+            : undefined;
 
         const prices = products
             .filter((result) => !!result)
