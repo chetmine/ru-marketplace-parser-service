@@ -290,13 +290,18 @@ export default class BrowserService {
 
     private async cleanup() {
         const now = Date.now();
+        const cleanupTasks: Promise<void>[] = [];
 
         for (const [userId, data] of this.contexts.entries()) {
             if (now - data.lastAccessedAt.getTime() > this.contextTTL) {
-                await this.proxyService.unattachProxy(userId);
-                await this.closeContext(userId);
+                cleanupTasks.push((async () => {
+                    await this.proxyService.unattachProxy(userId);
+                    await this.closeContext(userId);
+                })());
             }
         }
+
+        await Promise.all(cleanupTasks);
     }
 
     async closeContext(id: string) {
