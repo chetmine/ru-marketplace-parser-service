@@ -10,6 +10,9 @@ export default class ProductSearchService {
         const normalizedQuery = this.normalizeSearchQuery(query);
         const tokens = this.tokenize(normalizedQuery);
 
+        if (tokens.length === 0) {
+            return [];
+        }
 
         const productsWithScores = products
             .map(product => ({
