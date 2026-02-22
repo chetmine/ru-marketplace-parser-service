@@ -1,7 +1,7 @@
 {
   "name": "marketplace-parser-service",
   "version": "1.0.0",
-  "description": "Service that parser russian marketplaces (e.g. Ozon, Wilberries etc.) and returns prices that will be useful.",
+  "description": "Service that parses russian marketplaces (e.g. Ozon, Wilberries etc.) and returns product data.",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev src/index.ts",

@@ -1,6 +1,5 @@
 import {Locator, Page} from "playwright";
 import ProductSearchService from "../ProductSearchService";
-import ParserPublisherService from "./ParserPublisherService";
 
 
 export interface ProductPreview {
@@ -49,12 +48,6 @@ export interface ProductFeature {
 }
 
 export abstract class MarketPlaceParser {
-
-
-    // @ts-ignore
-    constructor() {
-
-    }
 
     abstract fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<ProductPreview[]>;
     abstract fetchProductInfo(page: Page, productPath: string): Promise<Product>;

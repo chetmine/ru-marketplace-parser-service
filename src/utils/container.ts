@@ -1,4 +1,4 @@
-import winston, {createLogger, level, Logger} from 'winston'
+import winston from 'winston'
 import {asClass, asValue, createContainer, InjectionMode} from 'awilix'
 import App from "../App";
 import WebServer from "../WebServer";
@@ -11,7 +11,6 @@ import OzonParser from "../services/parser/parsers/OzonParser";
 import WildBerriesParser from "../services/parser/parsers/WildBerriesParser";
 import ProductAggregatorService from "../services/ProductAggregatorService";
 import ParserRegistry from "../services/parser/ParserRegistry";
-import ProductSearchService from "../services/ProductSearchService";
 import PrismaService from "../services/PrismaService";
 import ProxyDataRepo from "../repo/proxy/ProxyDataRepo";
 import ProxyRepo from "../repo/proxy/ProxyRepo";

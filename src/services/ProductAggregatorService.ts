@@ -1,8 +1,6 @@
 import ParserRegistry from "./parser/ParserRegistry";
 import {MarketPlaceParser, Product, ProductPreview} from "./parser/MarketPlaceParser";
 import {BrowserContext, Page} from "playwright";
-import ProxyService from "./proxy/ProxyService";
-import BrowserService from "./BrowserService";
 import BrowserContextManager from "./BrowserContextManager";
 import {Logger} from "winston";
 import {loggerFactory} from "../utils/logger";
@@ -196,9 +194,6 @@ export default class ProductAggregatorService {
             if (failedResults.length > 0 && this.hasProxyErrors(failedResults)) {
                 throw new ProxyError('Proxy connection failed');
             }
-            // if (failedResults.length === results.length) {
-            //     throw new AllProxyFailedError('All Proxy failed.');
-            // }
 
             return results
                 .filter((result)  => result.status === 'fulfilled')
@@ -250,38 +245,16 @@ export default class ProductAggregatorService {
             )
         );
     }
-
-    private async fetchWithRetry(
-        parser: MarketPlaceParser,
-        page: Page,
-        query: string,
-        retries: number = 2
-    ): Promise<ProductPreview[]> {
-        let lastError: Error | undefined;
-
-        for (let attempt = 0; attempt <= retries; attempt++) {
-            try {
-                return await parser.fetchProducts(page, query);
-            } catch (error: any) {
-                lastError = error as Error;
-                if (attempt < retries) {
-                    await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-                }
-            }
-        }
-
-        throw lastError;
-    }
 }
 
-class ProxyError extends Error {
+export class ProxyError extends Error {
     constructor(message: string) {
         super(message);
         this.name = 'ProxyError';
     }
 }
 
-class AllProxyFailedError extends Error {
+export class AllProxyFailedError extends Error {
     constructor(message: string) {
         super(message);
         this.name = 'AllProxyFailedError';
