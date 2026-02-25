@@ -147,6 +147,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-finished.png` });
 
         const productCards = await page.locator(`.catalog-items-list__container div[itemprop*="itemListElement"]`).all();
+        productCards.splice(10);
 
         await productCards[5]?.scrollIntoViewIfNeeded();
 

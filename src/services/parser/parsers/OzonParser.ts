@@ -39,6 +39,7 @@ export default class OzonParser extends MarketPlaceParser {
         if (await container.count() === 0) throw new Error("Product list not found. Maybe selector is invalid.")
 
         const cards = await container.locator('> div').all();
+        cards.splice(10);
 
         return await Promise.all(
             cards.map((cardElement) => (this.parseProduct(cardElement)))

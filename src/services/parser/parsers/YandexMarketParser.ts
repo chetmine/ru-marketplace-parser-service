@@ -137,6 +137,7 @@ export default class YandexMarketParser extends MarketPlaceParser {
 
         const container = page.locator('div[data-apiary-widget-name="@marketfront/SerpLayout"]');
         const cards = await container.locator('div[data-apiary-widget-name="@marketfront/SerpEntity"] article[data-auto="searchOrganic"]').all();
+        cards.splice(10);
 
         const products = await Promise.all(
             cards.map((cardElement) => (this.parseProducts(cardElement)))

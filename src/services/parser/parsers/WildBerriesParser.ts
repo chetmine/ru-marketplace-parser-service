@@ -154,20 +154,10 @@ export default class WildBerriesParser extends MarketPlaceParser {
         const container = page.locator('.catalog-page__content');
         if (await container.count() === 0) throw new Error("Product list not found. Maybe selector is invalid.")
 
-        const cards = container.locator('article');
+        const cards = await container.locator('article').all();
+        cards.splice(10);
 
-        const count = await cards.count();
-
-        const promises: Promise<Product>[] = [];
-
-        for (let i = 0; i < count; i++) {
-            const card = cards.nth(i);
-            promises.push(
-                this.parseProduct(card),
-            )
-        }
-
-        return Promise.all(promises);
+        return await Promise.all(cards.map(this.parseProduct));
     }
 
     private async parseProduct(card: Locator): Promise<Product> {
