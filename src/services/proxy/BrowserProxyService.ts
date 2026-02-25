@@ -4,6 +4,7 @@ import {ProxyData} from "@prisma-app/client";
 import {BrowserContext} from "playwright";
 import {Logger} from "winston";
 import {loggerFactory} from "../../utils/logger";
+import pLimit from "p-limit";
 
 export default class BrowserProxyService {
 
@@ -21,32 +22,76 @@ export default class BrowserProxyService {
     }
 
     public async checkProxies(proxiesData: ProxyData[]): Promise<{ passed: any[]; failed: any[] }> {
+
+        const chunkSize = 100;
+        const concurrencyLimit = 10;
+        let currentChunk = 0;
+
+        let passedProxies: number[] = [];
+        let failedProxies: number[] = [];
+
+        while (true) {
+            const currentProxies: ProxyData[] = proxiesData.slice(currentChunk * chunkSize, (currentChunk + 1) * chunkSize);
+            if (proxiesData.length === 0) break;
+
+            const checkResults = await this.checkChunkWithLimit(
+                currentProxies,
+                concurrencyLimit
+            );
+
+            const failedIds = checkResults
+                .filter(r => !r.success)
+                .map(r => r.proxyDataId);
+
+            const passedIds = checkResults
+                .filter(r => r.success)
+                .map(r => r.proxyDataId);
+
+            failedProxies = [...failedProxies, ...failedIds];
+            passedProxies = [...passedProxies, ...passedIds];
+
+            currentChunk++;
+            if (proxiesData.length < chunkSize) break;
+        }
+
+        return {
+            passed: passedProxies,
+            failed: failedProxies
+        }
+
+    }
+
+    private async checkChunkWithLimit(
+        proxiesData: ProxyData[],
+        concurrency: number
+    ): Promise<CheckResult[]> {
+        const limit = pLimit(concurrency);
+
         const results = await Promise.allSettled(
-            proxiesData.map((proxyData) => this.checkProxy(proxyData))
+            proxiesData.map(proxyData =>
+                limit(async (): Promise<CheckResult> => {
+                    try {
+                        await this.checkProxy(proxyData);
+                        return {
+                            proxyDataId: proxyData.id,
+                            success: true
+                        };
+                    } catch (error) {
+                        return {
+                            proxyDataId: proxyData.id,
+                            success: false,
+                            error: error instanceof Error ? error.message : 'Unknown error'
+                        };
+                    }
+                })
+            )
         );
 
-        const checkResults = results.map(result =>
+        return results.map(result =>
             result.status === 'fulfilled'
                 ? result.value
                 : { proxyDataId: -1, success: false, error: 'Promise rejected' }
         );
-
-        const failedIds = checkResults
-            .filter(r => !r.success)
-            .map(r => r.proxyDataId);
-
-        const passedIds = checkResults
-            .filter(r => r.success)
-            .map(r => r.proxyDataId);
-
-        await this.proxyService.handleFailedProxiesBatch(failedIds);
-        await this.proxyService.handlePassedProxiesBatch(passedIds);
-
-        return {
-            passed: passedIds,
-            failed: failedIds
-        }
-
     }
 
     public async checkProxy(proxyData: ProxyData): Promise<CheckResult> {

@@ -45,7 +45,7 @@ export default class BrowserService {
     constructor({redisClient, proxyService, projectConfig}) {
         this.logger = loggerFactory(this);
 
-        this.contextTTL = proxyService.CONTEXT_DATA_TTL;
+        this.contextTTL = projectConfig.CONTEXT_DATA_TTL;
 
         this.redisClient = redisClient;
         this.proxyService = proxyService;
