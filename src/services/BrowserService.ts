@@ -40,12 +40,14 @@ export default class BrowserService {
 
     declare private redis: Redis;
     private readonly contextTTL: number;
+    private readonly uaOs: 'windows' | 'macos' | 'linux';
 
     // @ts-ignore
     constructor({redisClient, proxyService, projectConfig}) {
         this.logger = loggerFactory(this);
 
         this.contextTTL = projectConfig.CONTEXT_DATA_TTL;
+        this.uaOs = projectConfig.UA_OS;
 
         this.redisClient = redisClient;
         this.proxyService = proxyService;
@@ -220,7 +222,7 @@ export default class BrowserService {
         const timezones = ['Europe/Moscow'];
 
         return {
-            userAgent: ChromiumUserAgentGenerator.generate({ os: 'windows', mobile: false }),
+            userAgent: ChromiumUserAgentGenerator.generate({ os: this.uaOs, mobile: false }),
             geolocation: geolocations[Math.floor(Math.random() * geolocations.length)],
             viewport: { width: 1920, height: 1080 },
             locale: 'ru-RU',

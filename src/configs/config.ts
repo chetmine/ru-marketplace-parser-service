@@ -22,6 +22,7 @@ export const rabbitMQConfig = {
 
 export const projectConfig = {
     SAVE_SCREENSHOTS: false,
+    UA_OS: "windows",
     CONTEXT_DATA_TTL: 10 * 60 * 1000,
     MAX_REQUESTS_PER_SESSION: 3,
     FETCH_PRODUCTS_MAX_RETRY_ATTEMPTS: 3
