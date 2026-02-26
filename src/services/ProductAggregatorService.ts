@@ -1,5 +1,5 @@
 import ParserRegistry from "./parser/ParserRegistry";
-import {MarketPlaceParser, Product, ProductPreview} from "./parser/MarketPlaceParser";
+import {CaptchaError, MarketPlaceParser, Product, ProductPreview} from "./parser/MarketPlaceParser";
 import {BrowserContext, Page} from "playwright";
 import BrowserContextManager from "./BrowserContextManager";
 import {Logger} from "winston";
@@ -130,12 +130,19 @@ export default class ProductAggregatorService {
                 return data;
             } catch (error: any) {
                 if (this.isProxyError(error)) {
-
                     this.logger.debug(`Proxy failed in context ${id}. Reason: ${error.message}. Retrying...`)
 
                     await this.browserContextManager.replaceProxy(id);
                     continue;
                 }
+
+                if (error instanceof ParserExposedError) {
+                    this.logger.debug(`Parser exposed in context ${id}. Reason: ${error.message}. Retrying...`)
+
+                    await this.browserContextManager.replaceContext(id);
+                    continue;
+                }
+
                 throw error;
             } finally {
                 await this.sessionService.setAsFree(id);
@@ -163,36 +170,45 @@ export default class ProductAggregatorService {
         try {
             const results = await Promise.allSettled(
                 parsers.map(async (parser, index) => {
-                    const method = getParserMethod(parser);
-                    const result = await method(pages[index], query);
 
-                    if (!result) return result;
+                    try {
+                        const method = getParserMethod(parser);
+                        const result = await method(pages[index], query);
 
-                    if (Array.isArray(result)) {
-                        await this.parserPublisherService.publishProductsPreview(
-                            <ProductPreview[]><unknown>result,
-                            sessionId
-                        ).catch((e: any) => {
-                            this.logger.warn(`Failed to publish result: ${e.message}`);
-                        })
+                        if (!result) return result;
+
+                        if (Array.isArray(result)) {
+                            await this.parserPublisherService.publishProductsPreview(
+                                <ProductPreview[]><unknown>result,
+                                sessionId
+                            ).catch((e: any) => {
+                                this.logger.warn(`Failed to publish result: ${e.message}`);
+                            })
+                        }
+
+                        if (typeof result === 'object') {
+                            await this.parserPublisherService.publishProductDetailed(
+                                <Product><unknown>result,
+                                sessionId
+                            ).catch((e: any) => {
+                                this.logger.warn(`Failed to publish result: ${e.message}`);
+                            })
+                        }
+
+                        return result;
+                    } catch (e: any) {
+                        this.logger.warn(`Parser failed: ${e.message}`);
+                        throw e;
                     }
-
-                    if (typeof result === 'object') {
-                        await this.parserPublisherService.publishProductDetailed(
-                            <Product><unknown>result,
-                            sessionId
-                        ).catch((e: any) => {
-                            this.logger.warn(`Failed to publish result: ${e.message}`);
-                        })
-                    }
-
-                    return result;
                 })
             );
 
             const failedResults = results.filter(r => r.status === 'rejected');
             if (failedResults.length > 0 && this.hasProxyErrors(failedResults)) {
                 throw new ProxyError('Proxy connection failed');
+            }
+            if (failedResults.length > 0 && this.hasCaptchaErrors(failedResults)) {
+                throw new ParserExposedError('Captcha detected or Parser exposed.');
             }
 
             return results
@@ -223,12 +239,25 @@ export default class ProductAggregatorService {
             )
         );
     }
+
+    private hasCaptchaErrors(failedResults: PromiseSettledResult<any>[]) {
+        return failedResults.some(
+            result => result.status === 'rejected' && result.reason instanceof CaptchaError
+        );
+    }
 }
 
 export class ProxyError extends Error {
     constructor(message: string) {
         super(message);
         this.name = 'ProxyError';
+    }
+}
+
+export class ParserExposedError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'ParserExposedError';
     }
 }
 

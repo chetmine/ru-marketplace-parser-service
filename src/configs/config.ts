@@ -20,7 +20,8 @@ export const rabbitMQConfig = {
 }
 
 export const projectConfig = {
-    SAVE_SCREENSHOTS: true,
+    DEBUG_PARSER_ERRORS: true,
+    SAVE_SCREENSHOTS: false,
     UA_OS: detectOS(),
     CONTEXT_DATA_TTL: 10 * 60 * 1000,
     MAX_REQUESTS_PER_SESSION: 3,

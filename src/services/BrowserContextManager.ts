@@ -35,6 +35,11 @@ export default class BrowserContextManager {
         return this.browserProxyService.replaceProxy(id);
     }
 
+    async replaceContext(id: string): Promise<ContextData> {
+        await this.browserService.removeContext(id);
+        return this.browserService.getContextData(id);
+    }
+
     async saveContext(id: string, contextData: ContextData): Promise<void> {
         await this.browserService.save(id, contextData);
     }

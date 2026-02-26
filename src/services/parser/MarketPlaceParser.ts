@@ -70,11 +70,26 @@ export abstract class MarketPlaceParser {
         }
     }
 
+    protected async safeGetAttribute(element: Locator, attribute: string, timeout = 1000) {
+        try {
+            return await element.getAttribute(attribute, { timeout });
+        } catch (e) {
+            return null;
+        }
+    }
+
     protected async randomDelay(min = 1000, max = 3000): Promise<void> {
         const delay = Math.random() * (max - min) + min;
 
         return new Promise((resolve, reject) => {
             setTimeout(() => resolve(), delay);
         });
+    }
+}
+
+export class CaptchaError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'CaptchaError';
     }
 }

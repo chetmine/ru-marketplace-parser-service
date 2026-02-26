@@ -239,11 +239,26 @@ export default class BrowserService {
     }
 
 
-    public async save(userId: string, contextData: ContextData): Promise<void> {
-        const oldContext = await this.loadFromRedis(userId);
+    public async save(id: string, contextData: ContextData): Promise<void> {
+        const oldContext = await this.loadFromRedis(id);
         if (!oldContext) throw new Error("Context must be defined in Redis.");
 
-        await this.saveToRedis(userId, contextData);
+        await this.saveToRedis(id, contextData);
+    }
+
+    public async removeContext(id: string): Promise<void> {
+        //const contextData = await this.getContextData(id);
+        await this.closeContext(id);
+        await this.proxyService.unattachProxy(id);
+        await this.removeFromRedis(id);
+    }
+
+    private async removeFromRedis(id: string): Promise<void> {
+        try {
+            await this.redis.del(`browser_context:${id}`);
+        } catch (e: any) {
+            this.logger.error(`Failed to delete context in Redis: ${e.message}`);
+        }
     }
 
     private async saveToRedis(id: string, data: ContextData) {
