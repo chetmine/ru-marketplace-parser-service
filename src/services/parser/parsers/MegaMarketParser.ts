@@ -1,5 +1,5 @@
-import {MarketPlaceParser, Product, ProductFeature, ProductPreview} from "../MarketPlaceParser";
-import playwright, {Locator, Page} from "playwright";
+import {CaptchaError, MarketPlaceParser, Product, ProductFeature, ProductPreview} from "../MarketPlaceParser";
+import playwright, {Locator, Page, Response} from "playwright";
 
 export default class MegaMarketParser extends MarketPlaceParser {
 
@@ -17,23 +17,20 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
     async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
         await this.disableIntegrityCheckRequests(page);
-        await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
-        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/product-info.png` });
+        const cleanup = this.setupCaptchaInterceptor(page);
+        const captchaRace = (page as any).__captchaPromise;
 
-        await page.waitForSelector(`.catalog-default`);
-        const productContainer = page.locator('.catalog-default article').first();
+        try {
+            await Promise.race([
+                this.doFetchProductInfo(page, productPath),
+                captchaRace,
+            ]);
 
-        await this.randomDelay(500, 1200);
-
-        const allFeaturesRefererButton = productContainer.locator('.regular-characteristics__all-attrs');
-        await allFeaturesRefererButton.scrollIntoViewIfNeeded();
-        await this.randomDelay(200, 600);
-        await allFeaturesRefererButton.click();
-
-        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/show-all-features-button-clicked.png` });
-
-        return await this.parseProductInfo(page, productContainer);
+            return await this.doFetchProductInfo(page, productPath);
+        } finally {
+            cleanup();
+        }
     }
 
     private async parseProductInfo(page: Page, productContainer: Locator): Promise<Product> {
@@ -113,53 +110,116 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
     async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
         await this.disableIntegrityCheckRequests(page);
+
+        const cleanup = this.setupCaptchaInterceptor(page);
+        const captchaRace = (page as any).__captchaPromise;
+
+        try {
+            await Promise.race([
+                this.doFetchProducts(page, product),
+                captchaRace,
+            ]);
+
+            return await this.doFetchProducts(page, product);
+        } finally {
+            cleanup();
+        }
+    }
+
+    protected async doFetchProductInfo(page: Page, productPath: string): Promise<Product> {
+        await page.goto(productPath, { waitUntil: 'domcontentloaded' });
+
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/product-info.png` });
+
+        await page.waitForSelector(`.catalog-default`);
+        const productContainer = page.locator('.catalog-default article').first();
+
+        await this.randomDelay(500, 1200);
+
+        const allFeaturesRefererButton = productContainer.locator('.regular-characteristics__all-attrs');
+        await allFeaturesRefererButton.scrollIntoViewIfNeeded();
+        await this.randomDelay(200, 600);
+        await allFeaturesRefererButton.click();
+
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/show-all-features-button-clicked.png` });
+
+        return await this.parseProductInfo(page, productContainer);
+    }
+
+    private async doFetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
         await page.goto(this.marketplaceUrl, { waitUntil: 'domcontentloaded' });
-
         await page.goto(`https://megamarket.ru/catalog/?q=${encodeURI(product)}`, { waitUntil: 'domcontentloaded' });
-
         await this.interceptParse(page);
 
-        await page.waitForSelector(`.catalog-items-list__container`);
-        await page.waitForSelector(`.catalog-items-list__container > div`);
+        await page.waitForSelector('.catalog-items-list__container');
+        await page.waitForSelector('.catalog-items-list__container > div');
 
-        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-finished.png` });
+        if (this.isSaveScreenshots) {
+            await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-finished.png` });
+        }
 
-        const productCards = await page.locator(`.catalog-items-list__container div[itemprop*="itemListElement"]`).all();
-        productCards.splice(10);
+        const productCards = await page
+            .locator('.catalog-items-list__container div[data-test="product-item"]')
+            .all();
+        productCards.splice(50);
 
-        const products = await Promise.all(
-            productCards.map(card => this.parseProduct(card))
-        );
-
-        return products;
+        return Promise.all(productCards.map(card => this.parseProduct(card)));
     }
 
     private async interceptParse(page: Page) {
         await page.route('**/parse', async (route, request) => {
-            console.log("/parse intercepted!");
+            try {
+                await route.continue();
 
-            await route.continue();
+                await page.waitForTimeout(500);
+                await page.evaluate(() => window.stop()).catch(() => {});
+                await page.reload({ waitUntil: 'domcontentloaded' });
+            } catch (e) {
 
-            await page.waitForTimeout(500);
-            await page.evaluate(() => window.stop()).catch(() => {});
-            await page.reload({ waitUntil: 'domcontentloaded' });
+            }
         });
     }
 
-    private runCaptchaInterceptor(page: Page) {
-        const id = setInterval(() => {
-            if (!page) {
-                console.log("Page is not exists!")
-                clearInterval(id);
+    private setupCaptchaInterceptor(page: Page): () => void {
+        let rejectFn: ((err: Error) => void) | null = null;
+
+        const captchaPromise = new Promise<never>((_, reject) => {
+            rejectFn = reject;
+        });
+
+        const handler = async (response: Response) => {
+            const url = response.url();
+
+            const isCaptcha =
+                url.includes('xpvnsulc')
+            ;
+
+            if (isCaptcha) {
+                rejectFn?.(new CaptchaError(`Captcha detected!`));
             }
-            if (page.url().split("/")[3].includes('xpvnsulc')) throw new Error("Captcha detected!");
-        }, 500);
+        };
+
+        page.on('response', handler);
+
+        (page as any).__captchaPromise = captchaPromise;
+
+        return () => page.off('response', handler);
     }
 
-    private async checkForCaptcha(page: Page) {
-        if (page.url().split("/")[3].includes('xpvnsulc')) return true;
-        return false;
-    }
+    // private runCaptchaInterceptor(page: Page) {
+    //     const id = setInterval(() => {
+    //         if (!page) {
+    //             console.log("Page is not exists!")
+    //             clearInterval(id);
+    //         }
+    //         if (page.url().split("/")[3].includes('xpvnsulc')) throw new Error("Captcha detected!");
+    //     }, 500);
+    // }
+
+    // private async checkForCaptcha(page: Page) {
+    //     if (page.url().split("/")[3].includes('xpvnsulc')) return true;
+    //     return false;
+    // }
 
     private async disableIntegrityCheckRequests(page: Page): Promise<void> {
         await page.route('**/send', route => route.abort());
@@ -173,18 +233,22 @@ export default class MegaMarketParser extends MarketPlaceParser {
         await page.route('**/findByOffer', route => route.abort());
     }
 
-    private async checkForIntegrityDetection(page: Page) {
-        try {
-            await page.waitForSelector(`.pui-empty__content`, { timeout: 2000 });
-            throw new Error("Integrity check failed. Parser detected!")
-        } catch (e) {
-            if (e instanceof playwright.errors.TimeoutError) return;
-            throw e;
-        }
-    }
+    // private async checkForIntegrityDetection(page: Page) {
+    //     try {
+    //         await page.waitForSelector(`.pui-empty__content`, { timeout: 2000 });
+    //         throw new Error("Integrity check failed. Parser detected!")
+    //     } catch (e) {
+    //         if (e instanceof playwright.errors.TimeoutError) return;
+    //         throw e;
+    //     }
+    // }
 
     private async parseProduct(card: Locator): Promise<ProductPreview> {
-        const name = <string> await card.locator(`.catalog-item-regular-desktop__main-info`).locator('a').first().getAttribute('title');
+        const name = <string> await this.safeGetAttribute(
+            card.locator(`[class*="catalog-item-regular-desktop__main-info"]`).locator('a').first(),
+            'title',
+            1000
+        );
 
         const priceString = <string> await this.safeFetchText(
             card.locator('.catalog-item-regular-desktop__price')
@@ -195,13 +259,27 @@ export default class MegaMarketParser extends MarketPlaceParser {
             50
         );
 
-        const href = <string> await card.locator('.catalog-item-regular-desktop__main-info').locator(`a`).first().getAttribute('href');
+        const href = <string> await this.safeGetAttribute(
+            card.locator('a').first(),
+            'href',
+            5000
+        );
 
-        const imgUrl = await card.locator('img[class*="pui-img"]').first().getAttribute('src');
+        const imgUrl = await this.safeGetAttribute(
+            card.locator('img[class*="pui-img"]').first(),
+            'src',
+            1000
+        )
 
         const deliveryDate = await this.safeFetchText(
             card.locator('button[class*="catalog-buy-button__button"]').first(),
         );
+
+        const isAvailableText = !(await this.safeGetAttribute(
+            card.locator(`[class*="catalog-item-image-block_out-of-stock"]`),
+            'class',
+            50
+        ));
 
         const product = {
             name: name,
@@ -210,7 +288,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
             link: `${this.marketplaceUrl}${href}`.split('#')[0],
             imgUrl: imgUrl,
             deliveryDate: deliveryDate?.trim(),
-            isAvailable: !!priceString,
+            isAvailable: isAvailableText,
             marketplace: "megaMarket",
         }
 
