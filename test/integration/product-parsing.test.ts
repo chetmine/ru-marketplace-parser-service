@@ -15,7 +15,7 @@ import {redisConfig} from "../../src/configs/config";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const TEST_SESSION_ID = 'test-session-e2e';
+const TEST_SESSION_ID = 'test-session-product-parsing';
 const TEST_QUERY = 'Iphone 17 Pro Max';
 const MIN_MARKETPLACES_REQUIRED = 3;
 const ALL_MARKETPLACES = ['megaMarket', 'magnitMarket', 'yandexMarket', 'wildberries', 'ozon'];
@@ -31,6 +31,7 @@ const mockProxyService = {
     attachProxy: jest.fn().mockResolvedValue(null),
     unattachProxy: jest.fn().mockResolvedValue(undefined),
     getProxyData: jest.fn().mockResolvedValue(null),
+
     CONTEXT_DATA_TTL: 5 * 60 * 1000, // 5 минут
 };
 const mockBrowserProxyService = {
@@ -59,7 +60,7 @@ function getUniqueMarketplaces(items: Array<{ marketplace: string }>): string[] 
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
-describe('ProductAggregatorService — E2E Integration', () => {
+describe('ProductAggregatorService — Integration', () => {
     let productAggregatorService: ProductAggregatorService;
     let browserService: BrowserService;
     let redisClient: RedisClient;
@@ -69,6 +70,9 @@ describe('ProductAggregatorService — E2E Integration', () => {
         const projectConfig = {
             FETCH_PRODUCTS_MAX_RETRY_ATTEMPTS: 3,
             MAX_REQUESTS_PER_SESSION: 5,
+            SAVE_SCREENSHOTS: false,
+            CONTEXT_DATA_TTL: 5 * 60 * 1000,
+            UA_OS: "windows"
         };
 
         const container = createContainer({ injectionMode: InjectionMode.PROXY });
@@ -85,7 +89,9 @@ describe('ProductAggregatorService — E2E Integration', () => {
             browserProxyService: asValue(mockBrowserProxyService),
             parserPublisherService: asValue(mockParserPublisherService),
 
-            browserService: asClass(BrowserService).singleton(),
+            browserService: asClass(BrowserService).inject(() => ({
+                config: projectConfig
+            })).singleton(),
             browserContextManager: asClass(BrowserContextManager).singleton(),
 
             sessionService: asClass(SessionService).singleton(),
@@ -249,13 +255,13 @@ describe('ProductAggregatorService — E2E Integration', () => {
             const results = await productAggregatorService.searchProducts(
                 TEST_SESSION_ID,
                 TEST_QUERY,
-                { marketplace: 'ozon' },
+                { marketplace: 'magnitMarket' },
             );
 
             expect(results.length).toBeGreaterThan(0);
 
             results.forEach((product: { marketplace: any; }) => {
-                expect(product.marketplace).toBe('ozon');
+                expect(product.marketplace).toBe('magnitMarket');
             });
         });
 
