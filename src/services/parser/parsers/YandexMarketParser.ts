@@ -1,5 +1,5 @@
 import {MarketPlaceParser, Product, ProductFeature, ProductPreview, ScoresInfo} from "../MarketPlaceParser";
-import {Locator, Page} from "playwright";
+import playwright, {Locator, Page} from "playwright";
 import process from "node:process";
 
 export default class YandexMarketParser extends MarketPlaceParser {
@@ -20,6 +20,8 @@ export default class YandexMarketParser extends MarketPlaceParser {
         await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info.png` });
+
+        await this.checkForCaptcha(page);
 
         await page.waitForSelector('div[data-baobab-name="main"]');
 
@@ -175,8 +177,16 @@ export default class YandexMarketParser extends MarketPlaceParser {
         }
     }
 
-    fetchAvailableFilters(productsPage: Page): Promise<any> {
-        return Promise.resolve(undefined);
+    private async checkForCaptcha(page: Page) {
+        try {
+            const captchaForm = page.locator(`form[action*="checkcaptcha"]`)
+            await captchaForm.getAttribute(`method`, { timeout: 2000 });
+
+            throw new Error("Captcha detected!")
+        } catch (e) {
+            if (e instanceof playwright.errors.TimeoutError) return;
+            throw e;
+        }
     }
 
 }
