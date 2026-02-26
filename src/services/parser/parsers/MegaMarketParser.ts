@@ -17,7 +17,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
     async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
         await this.disableIntegrityCheckRequests(page);
-        await page.goto(productPath, { waitUntil: 'load' });
+        await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/product-info.png` });
 
@@ -113,8 +113,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
     async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
         await this.disableIntegrityCheckRequests(page);
-        await page.goto(this.marketplaceUrl, { waitUntil: 'load' });
-
+        await page.goto(this.marketplaceUrl, { waitUntil: 'domcontentloaded' });
 
         // if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/main-page.png` });
         //
@@ -160,17 +159,17 @@ export default class MegaMarketParser extends MarketPlaceParser {
         return products;
     }
 
-    // private async checkForCaptcha(page: Page) {
-    //     try {
-    //         const captchaForm = page.locator(`form[action*="checkcaptcha"]`)
-    //         await captchaForm.getAttribute(`method`, { timeout: 2000 });
-    //
-    //         throw new Error("Captcha detected!")
-    //     } catch (e) {
-    //         if (e instanceof playwright.errors.TimeoutError) return;
-    //         throw e;
-    //     }
-    // }
+    private async checkForCaptcha(page: Page) {
+        try {
+            const captchaForm = page.locator(`div[id="captcha-root"]`)
+            await captchaForm.getAttribute(`id`, { timeout: 2000 });
+
+            throw new Error("Captcha detected!")
+        } catch (e) {
+            if (e instanceof playwright.errors.TimeoutError) return;
+            throw e;
+        }
+    }
 
     private async disableIntegrityCheckRequests(page: Page): Promise<void> {
         await page.route('**/send', route => route.abort());
