@@ -1,7 +1,6 @@
 import dotenv from "dotenv";
+import {detectOS} from "../utils/detect-os";
 dotenv.config();
-
-
 
 export const webServerConfig = {
     port: process.env.SERVER_PORT,
@@ -21,8 +20,8 @@ export const rabbitMQConfig = {
 }
 
 export const projectConfig = {
-    SAVE_SCREENSHOTS: false,
-    UA_OS: "windows",
+    SAVE_SCREENSHOTS: true,
+    UA_OS: detectOS(),
     CONTEXT_DATA_TTL: 10 * 60 * 1000,
     MAX_REQUESTS_PER_SESSION: 3,
     FETCH_PRODUCTS_MAX_RETRY_ATTEMPTS: 3
