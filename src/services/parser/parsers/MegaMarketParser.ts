@@ -1,5 +1,5 @@
 import {MarketPlaceParser, Product, ProductFeature, ProductPreview} from "../MarketPlaceParser";
-import {Locator, Page} from "playwright";
+import playwright, {Locator, Page} from "playwright";
 
 export default class MegaMarketParser extends MarketPlaceParser {
 
@@ -16,11 +16,8 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
 
     async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
+        await this.disableIntegrityCheckRequests(page);
         await page.goto(productPath, { waitUntil: 'load' });
-
-        await page.mouse.move(300, 300, {
-            steps: 2
-        });
 
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/product-info.png` });
 
@@ -114,32 +111,37 @@ export default class MegaMarketParser extends MarketPlaceParser {
         };
     }
 
-    async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<ProductPreview[]> {
-
+    async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
+        await this.disableIntegrityCheckRequests(page);
         await page.goto(this.marketplaceUrl, { waitUntil: 'load' });
 
-        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/main-page.png` });
 
-        const openSearchTabElement = page.locator(`div[class*="desktop-navigation-tabs__item_search"]`);
-        await openSearchTabElement.focus();
-        await this.randomDelay(10, 40)
-        await openSearchTabElement.click();
+        // if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/main-page.png` });
+        //
+        // //await this.checkForIntegrityDetection(page);
+        //
+        // const openSearchTabElement = page.locator(`div[class*="desktop-navigation-tabs__item_search"]`);
+        // //await openSearchTabElement.focus({ timeout: 3000 });
+        // //await this.randomDelay(10, 40)
+        // await openSearchTabElement.click();
+        //
+        // if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-tab-opened.png` });
+        //
+        // const textArea = page.locator(`textarea[class*="search-input__textarea"]`);
+        //
+        // await this.randomDelay(400, 1100);
+        // await textArea.focus();
+        // await this.randomDelay(200, 500);
+        // await textArea.fill(product);
+        //
+        // if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/input-filled.png` });
+        //
+        // await this.randomDelay(50, 200);
+        // await page.keyboard.press("Enter");
+        //
+        // if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-started.png` });
 
-        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-tab-opened.png` });
-
-        const textArea = page.locator(`textarea[class*="search-input__textarea"]`);
-
-        await this.randomDelay(400, 1100);
-        await textArea.focus();
-        await this.randomDelay(200, 500);
-        await textArea.fill(product);
-
-        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/input-filled.png` });
-
-        await this.randomDelay(50, 200);
-        await page.keyboard.press("Enter");
-
-        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-started.png` });
+        await page.goto(`https://megamarket.ru/catalog/?q=${encodeURI(product)}`, { waitUntil: 'domcontentloaded' });
 
         await page.waitForSelector(`.catalog-items-list__container`)
         await page.waitForSelector(`.catalog-items-list__container > div`)
@@ -156,6 +158,40 @@ export default class MegaMarketParser extends MarketPlaceParser {
         );
 
         return products;
+    }
+
+    // private async checkForCaptcha(page: Page) {
+    //     try {
+    //         const captchaForm = page.locator(`form[action*="checkcaptcha"]`)
+    //         await captchaForm.getAttribute(`method`, { timeout: 2000 });
+    //
+    //         throw new Error("Captcha detected!")
+    //     } catch (e) {
+    //         if (e instanceof playwright.errors.TimeoutError) return;
+    //         throw e;
+    //     }
+    // }
+
+    private async disableIntegrityCheckRequests(page: Page): Promise<void> {
+        await page.route('**/send', route => route.abort());
+        await page.route('**/list', route => route.abort());
+        await page.route('**/search', route => route.abort());
+        await page.route('**/get', route => route.abort());
+        await page.route('**/start', route => route.abort());
+        await page.route('**/push', route => route.abort());
+        await page.route('**/searchSuggest', route => route.abort());
+        await page.route('**/menu', route => route.abort());
+        await page.route('**/findByOffer', route => route.abort());
+    }
+
+    private async checkForIntegrityDetection(page: Page) {
+        try {
+            await page.waitForSelector(`.pui-empty__content`, { timeout: 2000 });
+            throw new Error("Integrity check failed. Parser detected!")
+        } catch (e) {
+            if (e instanceof playwright.errors.TimeoutError) return;
+            throw e;
+        }
     }
 
     private async parseProduct(card: Locator): Promise<ProductPreview> {

@@ -2,7 +2,8 @@ import {Logger} from "winston";
 import {Browser, BrowserContext} from "playwright";
 import cron from 'node-cron'
 
-import {chromium} from 'playwright-extra';
+import { chromium } from 'playwright';
+import StealthMode from 'puppeteer-extra-plugin-stealth';
 import {loggerFactory} from "../utils/logger";
 import RedisClient from "../redis/RedisClient";
 import Redis from "ioredis";
@@ -57,6 +58,8 @@ export default class BrowserService {
 
         this.redis = this.redisClient.getInstance();
 
+        //chromium.use(StealthMode());
+
         this.browser = await chromium.launch({
             headless: false,
             args: [
@@ -64,9 +67,22 @@ export default class BrowserService {
                 '--disable-dev-shm-usage',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
+                '--disable-web-security',
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--start-maximized',
+                '--disable-extensions',
+                '--disable-infobars',
+                '--enable-automation',
+                '--no-first-run',
+                '--enable-webgl',
+                "--disable-dev-mode",
+                "--disable-debug-mode",
+                "--profile-directory=ceddys",
                 '--headless=new'
             ],
         });
+
+
 
         cron.schedule('* * * * *', this.cleanup.bind(this));
 
@@ -129,10 +145,12 @@ export default class BrowserService {
             viewport: fingerprint.viewport,
             locale: fingerprint.locale,
             timezoneId: fingerprint.timezoneId,
+            colorScheme: "dark",
 
             permissions: ['geolocation', 'notifications'],
             extraHTTPHeaders: {
                 'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+                // 'Sec-CH-UA': 'Not:A-Brand";v="99", "Google Chrome";v="145", "Chromium";v="145'
             },
             javaScriptEnabled: true,
             ignoreHTTPSErrors: true,
@@ -155,29 +173,19 @@ export default class BrowserService {
         //     })
         // })
 
-        // await context.addInitScript(() => {
-        //     Object.defineProperty(navigator, 'webdriver', {
-        //         get: () => undefined,
-        //     });
-        //
-        //     Object.defineProperty(navigator, 'languages', {
-        //         get: () => ['ru-RU', 'ru', 'en-US', 'en'],
-        //     });
-        //
-        //     Object.defineProperty(navigator, 'plugins', {
-        //         get: () => [1, 2, 3, 4, 5],
-        //     });
-        //
-        //     (window as any).chrome = {
-        //         runtime: {},
-        //     };
-        //
-        //     const originalQuery = window.navigator.permissions.query;
-        //     window.navigator.permissions.query = (parameters: any) =>
-        //         parameters.name === 'notifications'
-        //             ? Promise.resolve({ state: 'prompt' } as PermissionStatus)
-        //             : originalQuery(parameters);
-        // });
+        await context.addInitScript(() => {
+            // Object.defineProperty(navigator, 'languages', {
+            //     get: () => ['ru-RU', 'ru', 'en-US', 'en'],
+            // });
+
+            // Object.defineProperty(navigator, 'plugins', {
+            //     get: () => [1, 2, 3, 4, 5],
+            // });
+
+            (window as any).chrome = {
+                runtime: {},
+            };
+        });
 
 
 
