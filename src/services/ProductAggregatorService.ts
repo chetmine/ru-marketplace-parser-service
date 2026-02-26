@@ -204,28 +204,6 @@ export default class ProductAggregatorService {
         }
     }
 
-    private formatResponse(detailedProducts: Product[]) {
-        const objectWithMostFeatures = detailedProducts.reduce((max, current) =>
-            // @ts-ignore
-            current?.features?.length > max?.features?.length ? current : max
-        );
-
-        const prices = detailedProducts
-            .filter((result) => !!result)
-            .map((product) => ({
-                [product.marketplace]: {
-                    name: product?.name,
-                    price: product?.price,
-                    link: product?.link,
-                }
-            }));
-
-        return {
-            product: objectWithMostFeatures,
-            prices: prices,
-        };
-    }
-
     private isProxyError(error: any): boolean {
         return error instanceof ProxyError ||
             error instanceof AllProxyFailedError ||
