@@ -115,42 +115,17 @@ export default class MegaMarketParser extends MarketPlaceParser {
         await this.disableIntegrityCheckRequests(page);
         await page.goto(this.marketplaceUrl, { waitUntil: 'domcontentloaded' });
 
-        // if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/main-page.png` });
-        //
-        // //await this.checkForIntegrityDetection(page);
-        //
-        // const openSearchTabElement = page.locator(`div[class*="desktop-navigation-tabs__item_search"]`);
-        // //await openSearchTabElement.focus({ timeout: 3000 });
-        // //await this.randomDelay(10, 40)
-        // await openSearchTabElement.click();
-        //
-        // if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-tab-opened.png` });
-        //
-        // const textArea = page.locator(`textarea[class*="search-input__textarea"]`);
-        //
-        // await this.randomDelay(400, 1100);
-        // await textArea.focus();
-        // await this.randomDelay(200, 500);
-        // await textArea.fill(product);
-        //
-        // if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/input-filled.png` });
-        //
-        // await this.randomDelay(50, 200);
-        // await page.keyboard.press("Enter");
-        //
-        // if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-started.png` });
-
         await page.goto(`https://megamarket.ru/catalog/?q=${encodeURI(product)}`, { waitUntil: 'domcontentloaded' });
 
-        await page.waitForSelector(`.catalog-items-list__container`)
-        await page.waitForSelector(`.catalog-items-list__container > div`)
+        await this.interceptParse(page);
+
+        await page.waitForSelector(`.catalog-items-list__container`);
+        await page.waitForSelector(`.catalog-items-list__container > div`);
 
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-finished.png` });
 
         const productCards = await page.locator(`.catalog-items-list__container div[itemprop*="itemListElement"]`).all();
         productCards.splice(10);
-
-        await productCards[5]?.scrollIntoViewIfNeeded();
 
         const products = await Promise.all(
             productCards.map(card => this.parseProduct(card))
@@ -159,16 +134,31 @@ export default class MegaMarketParser extends MarketPlaceParser {
         return products;
     }
 
-    private async checkForCaptcha(page: Page) {
-        try {
-            const captchaForm = page.locator(`div[id="captcha-root"]`)
-            await captchaForm.getAttribute(`id`, { timeout: 2000 });
+    private async interceptParse(page: Page) {
+        await page.route('**/parse', async (route, request) => {
+            console.log("/parse intercepted!");
 
-            throw new Error("Captcha detected!")
-        } catch (e) {
-            if (e instanceof playwright.errors.TimeoutError) return;
-            throw e;
-        }
+            await route.continue();
+
+            await page.waitForTimeout(500);
+            await page.evaluate(() => window.stop()).catch(() => {});
+            await page.reload({ waitUntil: 'domcontentloaded' });
+        });
+    }
+
+    private runCaptchaInterceptor(page: Page) {
+        const id = setInterval(() => {
+            if (!page) {
+                console.log("Page is not exists!")
+                clearInterval(id);
+            }
+            if (page.url().split("/")[3].includes('xpvnsulc')) throw new Error("Captcha detected!");
+        }, 500);
+    }
+
+    private async checkForCaptcha(page: Page) {
+        if (page.url().split("/")[3].includes('xpvnsulc')) return true;
+        return false;
     }
 
     private async disableIntegrityCheckRequests(page: Page): Promise<void> {
