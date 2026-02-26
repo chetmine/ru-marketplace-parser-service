@@ -95,17 +95,7 @@ export default class WildBerriesParser extends MarketPlaceParser {
         const featureTRs = await featuresDiv.locator('tr').all();
 
         const features: ProductFeature[] = await Promise.all(
-            featureTRs.map(
-                async (tbody) => {
-                    const featureType = await tbody.locator('th').first().textContent({timeout: 100})
-                    const featureValue = await tbody.locator('td').first().textContent({timeout: 100})
-
-                    return {
-                        name: featureType?.trim() as string,
-                        value: featureValue?.trim() as string,
-                    }
-                }
-            )
+            featureTRs.map(this.parseFeature)
         );
 
         return {
@@ -119,7 +109,25 @@ export default class WildBerriesParser extends MarketPlaceParser {
             deliveryDate: deliveryDate,
             oldPrice: Number.parseFloat(<string>oldPriceString?.replace(/\s/g, "").replace("₽", "")),
             scoresInfo: <ScoresInfo>scoresInfo,
-            features: features,
+            features: features.filter(feature => !!feature.value),
+        }
+    }
+
+    private async parseFeature(featureElement: Locator) {
+
+        try {
+            const featureType = await featureElement.locator('th').first().textContent({timeout: 100})
+            const featureValue = await featureElement.locator('td').first().textContent({timeout: 100})
+
+            return {
+                name: featureType?.trim() as string,
+                value: featureValue?.trim() as string,
+            }
+        } catch (e: any) {
+            return {
+                name: "",
+                value: ""
+            }
         }
     }
 
@@ -157,7 +165,7 @@ export default class WildBerriesParser extends MarketPlaceParser {
         const cards = await container.locator('article').all();
         cards.splice(10);
 
-        return await Promise.all(cards.map(this.parseProduct));
+        return await Promise.all(cards.map(this.parseProduct.bind(this)));
     }
 
     private async parseProduct(card: Locator): Promise<Product> {
