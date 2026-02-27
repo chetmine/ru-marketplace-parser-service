@@ -4,7 +4,7 @@
   "description": "Service that parses russian marketplaces (e.g. Ozon, Wilberries etc.) and returns product data.",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node-dev src/index.ts",
+    "dev": "ts-node-dev --respawn --notify src/index.ts",
     "prod": "node dist/index.js",
     "test": "jest",
     "db:deploy": "npx prisma migrate deploy && npx prisma generate",
