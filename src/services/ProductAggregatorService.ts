@@ -10,6 +10,7 @@ import SessionService, {SessionIsBusyError} from "./SessionService";
 
 export interface SearchProductOptions {
     marketplace?: string
+    retryOnParserExposed?: boolean
 }
 
 type ParserMethod<T> = (page: Page, query: string) => Promise<T>;
@@ -55,7 +56,8 @@ export default class ProductAggregatorService {
                     options,
                     (parser: MarketPlaceParser) => parser.fetchProducts.bind(parser),
                 );
-            }
+            },
+            options
         );
 
 
@@ -77,7 +79,8 @@ export default class ProductAggregatorService {
                     options,
                     (parser: MarketPlaceParser) => parser.findProduct.bind(parser),
                 );
-            }
+            },
+            options
         );
 
         const objectWithMostFeatures = products.length > 0
@@ -112,6 +115,7 @@ export default class ProductAggregatorService {
     private async executeWithRetry<T>(
         id: string,
         executor: (context: BrowserContext) => Promise<T>,
+        options?: SearchProductOptions,
     ): Promise<T> {
 
         if (!await this.sessionService.isAvailable(id)) throw new SessionIsBusyError("Session is already in use");
@@ -136,7 +140,7 @@ export default class ProductAggregatorService {
                     continue;
                 }
 
-                if (error instanceof ParserExposedError) {
+                if (options?.retryOnParserExposed && error instanceof ParserExposedError) {
                     this.logger.debug(`Parser exposed in context ${id}. Reason: ${error.message}. Retrying...`)
 
                     await this.browserContextManager.replaceContext(id);
@@ -149,8 +153,8 @@ export default class ProductAggregatorService {
             }
         }
 
-        this.logger.error(`Proxy failed in context ${id}. Too many attempts!`)
-        throw new Error(`Failed after ${maxAttempts} attempts due to proxy issues.`);
+        this.logger.error(`Parsing failed in context ${id}. Too many attempts!`)
+        throw new Error(`Failed after ${maxAttempts} attempts due to parsing issues.`);
     }
 
     private async executeSearch<T>(
@@ -207,7 +211,7 @@ export default class ProductAggregatorService {
             if (failedResults.length > 0 && this.hasProxyErrors(failedResults)) {
                 throw new ProxyError('Proxy connection failed');
             }
-            if (failedResults.length > 0 && this.hasCaptchaErrors(failedResults)) {
+            if (options?.retryOnParserExposed && failedResults.length > 0 && this.hasCaptchaErrors(failedResults)) {
                 throw new ParserExposedError('Captcha detected or Parser exposed.');
             }
 

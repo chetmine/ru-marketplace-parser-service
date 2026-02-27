@@ -27,6 +27,7 @@ export default class ProductController {
 
             const product = <string> req.query?.name;
             const marketplace = req.query?.marketplace;
+            const retryOnParserExposed = req.query?.retryOnParserExposed;
 
             const id = <string>req.headers['session-id'];
             if (!id) return res.status(400).json({error: "Session-id must be provided."});
@@ -36,6 +37,7 @@ export default class ProductController {
                 product,
                 {
                     marketplace: marketplace?.toString(),
+                    retryOnParserExposed: retryOnParserExposed === "true",
                 }
             );
 
@@ -59,6 +61,7 @@ export default class ProductController {
 
             const name = <string> req.query?.name;
             const marketplace = req.query?.marketplace;
+            const retryOnParserExposed = req.query?.retryOnParserExposed;
 
             const id = <string>req.headers['session-id'];
             if (!id) return res.status(400).json({error: "Session-id must be provided."});
@@ -68,6 +71,7 @@ export default class ProductController {
                 <string> name,
                 {
                     marketplace: marketplace?.toString(),
+                    retryOnParserExposed: retryOnParserExposed === "true",
                 }
             );
 
