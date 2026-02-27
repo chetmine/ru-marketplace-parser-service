@@ -1,9 +1,6 @@
 import {Logger} from "winston";
-import {Browser, BrowserContext} from "playwright";
+import {Browser, BrowserContext, chromium} from "playwright";
 import cron from 'node-cron'
-
-import { chromium } from 'playwright';
-import StealthMode from 'puppeteer-extra-plugin-stealth';
 import {loggerFactory} from "../utils/logger";
 import RedisClient from "../redis/RedisClient";
 import Redis from "ioredis";
@@ -166,31 +163,21 @@ export default class BrowserService {
     }
 
     private async configureContext(context: BrowserContext): Promise<BrowserContext> {
-
-        // await context.addInitScript(() => {
-        //     Object.defineProperty(navigator, 'webdriver', {
-        //         get: () => '[native code]',
-        //     })
-        // })
-
         await context.addInitScript(() => {
-            // Object.defineProperty(navigator, 'languages', {
-            //     get: () => ['ru-RU', 'ru', 'en-US', 'en'],
-            // });
-
-            // Object.defineProperty(navigator, 'plugins', {
-            //     get: () => [1, 2, 3, 4, 5],
-            // });
-
             (window as any).chrome = {
                 runtime: {},
             };
+
+            // const getParameter = WebGLRenderingContext.prototype.getParameter;
+            // WebGLRenderingContext.prototype.getParameter = function(parameter) {
+            //     if (parameter === 37445) return 'Google Inc. (NVIDIA)';  // UNMASKED_VENDOR_WEBGL
+            //     if (parameter === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)';  // UNMASKED_RENDERER_WEBGL
+            //     return getParameter.call(this, parameter);
+            // };
         });
 
 
-
         context.setDefaultTimeout(20_000);
-
         return context;
     }
 
@@ -281,6 +268,17 @@ export default class BrowserService {
         } catch (error: any) {
             this.logger.error(`Failed to save context to Redis: ${error.message}`);
         }
+    }
+
+    public async fingerprintTest() {
+        const fingerprint = this.generateFingerprint();
+        const context = await this.createContext(fingerprint);
+
+        const page = await context.newPage();
+        await page.goto(`https://bot.sannysoft.com/`);
+
+        const fpTestElement = page.locator(`pre[id="fp"]`);
+        return await fpTestElement.textContent();
     }
 
     private async loadFromRedis(userId: string): Promise<ContextData | null> {

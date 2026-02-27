@@ -27,6 +27,8 @@ import RabbitMQConnection from "../infrastructure/RabbitMQConnection";
 import RabbitMQPublisher from "../infrastructure/RabbitMQPublisher";
 import ParserPublisherService from "../services/parser/ParserPublisherService";
 import SessionService from "../services/SessionService";
+import BrowserRoutes from "../routes/BrowserRoutes";
+import BrowserController from "../controllers/BrowserController";
 
 const logger = winston.createLogger({
     level: 'debug',
@@ -99,6 +101,9 @@ export function registerContainer() {
 
         productController: asClass(ProductController).singleton(),
         productRoutes: asClass(ProductRoutes).singleton(),
+
+        browserController: asClass(BrowserController).singleton(),
+        browserRoutes: asClass(BrowserRoutes).singleton(),
     });
 }
 
