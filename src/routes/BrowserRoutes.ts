@@ -21,6 +21,11 @@ export default class BrowserRoutes {
             , this.browserController.testBrowserFingerprint.bind(this.browserController)
         );
 
+        router.post("/test/webgl"
+            , this.authMiddleware.middleware.bind(this.authMiddleware)
+            , this.browserController.testBrowserWebGL.bind(this.browserController)
+        );
+
         return router;
     }
 }

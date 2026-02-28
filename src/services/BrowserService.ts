@@ -64,17 +64,17 @@ export default class BrowserService {
                 '--disable-dev-shm-usage',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process',
-                '--start-maximized',
-                '--disable-extensions',
-                '--disable-infobars',
-                '--enable-automation',
-                '--no-first-run',
-                '--enable-webgl',
-                "--disable-dev-mode",
-                "--disable-debug-mode",
-                "--profile-directory=ceddys",
+                // '--disable-web-security',
+                // '--disable-features=IsolateOrigins,site-per-process',
+                // '--start-maximized',
+                // '--disable-extensions',
+                // '--disable-infobars',
+                // '--enable-automation',
+                // '--no-first-run',
+                // '--enable-webgl',
+                // "--disable-dev-mode",
+                // "--disable-debug-mode",
+                // "--profile-directory=ceddys",
                 '--headless=new'
             ],
         });
@@ -168,12 +168,12 @@ export default class BrowserService {
                 runtime: {},
             };
 
-            // const getParameter = WebGLRenderingContext.prototype.getParameter;
-            // WebGLRenderingContext.prototype.getParameter = function(parameter) {
-            //     if (parameter === 37445) return 'Google Inc. (NVIDIA)';  // UNMASKED_VENDOR_WEBGL
-            //     if (parameter === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)';  // UNMASKED_RENDERER_WEBGL
-            //     return getParameter.call(this, parameter);
-            // };
+            const getParameter = WebGLRenderingContext.prototype.getParameter;
+            WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                if (parameter === 37445) return 'Google Inc. (NVIDIA)';  // UNMASKED_VENDOR_WEBGL
+                if (parameter === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)';  // UNMASKED_RENDERER_WEBGL
+                return getParameter.call(this, parameter);
+            };
         });
 
 
@@ -278,7 +278,39 @@ export default class BrowserService {
         await page.goto(`https://bot.sannysoft.com/`);
 
         const fpTestElement = page.locator(`pre[id="fp"]`);
-        return await fpTestElement.textContent();
+        const data = await fpTestElement.textContent();
+
+        await context.close();
+        return data;
+    }
+
+    public async webGLTest() {
+        const fingerprintForContext = this.generateFingerprint();
+        const context = await this.createContext(fingerprintForContext);
+        const page = await context.newPage();
+        await page.goto('about:blank');
+
+        const fingerprint = await page.evaluate(() => ({
+            canvas: (() => {
+                const c = document.createElement('canvas');
+                const ctx = c.getContext('2d');
+                ctx!.fillText('test', 10, 10);
+                return c.toDataURL();
+            })(),
+            webgl: (() => {
+                const c = document.createElement('canvas');
+                const gl = c.getContext('webgl') as WebGLRenderingContext;
+                return gl?.getParameter(gl.RENDERER);
+            })(),
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            hardwareConcurrency: navigator.hardwareConcurrency,
+            deviceMemory: (navigator as any).deviceMemory,
+        }));
+
+        await context.close();
+
+        return fingerprint;
     }
 
     private async loadFromRedis(userId: string): Promise<ContextData | null> {
