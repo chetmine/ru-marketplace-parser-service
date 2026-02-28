@@ -25,7 +25,6 @@ export class ChromiumUserAgentGenerator {
 
     private static readonly linuxVersions = [
         'X11; Linux x86_64',
-        'X11; Ubuntu; Linux x86_64',
     ];
 
     private static readonly mobileDevices = [

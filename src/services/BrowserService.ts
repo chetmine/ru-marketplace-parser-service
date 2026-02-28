@@ -168,12 +168,16 @@ export default class BrowserService {
                 runtime: {},
             };
 
-            const getParameter = WebGLRenderingContext.prototype.getParameter;
-            WebGLRenderingContext.prototype.getParameter = function(parameter) {
-                if (parameter === 37445) return 'Google Inc. (NVIDIA)';  // UNMASKED_VENDOR_WEBGL
-                if (parameter === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)';  // UNMASKED_RENDERER_WEBGL
-                return getParameter.call(this, parameter);
-            };
+            // const getParameter = WebGLRenderingContext.prototype.getParameter;
+            // WebGLRenderingContext.prototype.getParameter = function(parameter) {
+            //     if (parameter === 37445) return 'Google Inc. (NVIDIA)';  // UNMASKED_VENDOR_WEBGL
+            //     if (parameter === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)';  // UNMASKED_RENDERER_WEBGL
+            //     return getParameter.call(this, parameter);
+            // };
+            //
+            // Object.defineProperty(navigator, 'platform', {
+            //     get: () => 'Win32',
+            // });
         });
 
 
