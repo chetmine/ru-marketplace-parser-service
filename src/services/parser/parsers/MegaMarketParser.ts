@@ -109,8 +109,6 @@ export default class MegaMarketParser extends MarketPlaceParser {
     }
 
     async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
-        await this.disableIntegrityCheckRequests(page);
-
         const cleanup = this.setupCaptchaInterceptor(page);
         const captchaRace = (page as any).__captchaPromise;
 
@@ -148,6 +146,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
     private async doFetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
         await page.goto(this.marketplaceUrl, { waitUntil: 'domcontentloaded' });
+
         await page.goto(`https://megamarket.ru/catalog/?q=${encodeURI(product)}`, { waitUntil: 'domcontentloaded' });
         await this.interceptParse(page);
 
@@ -206,21 +205,6 @@ export default class MegaMarketParser extends MarketPlaceParser {
         return () => page.off('response', handler);
     }
 
-    // private runCaptchaInterceptor(page: Page) {
-    //     const id = setInterval(() => {
-    //         if (!page) {
-    //             console.log("Page is not exists!")
-    //             clearInterval(id);
-    //         }
-    //         if (page.url().split("/")[3].includes('xpvnsulc')) throw new Error("Captcha detected!");
-    //     }, 500);
-    // }
-
-    // private async checkForCaptcha(page: Page) {
-    //     if (page.url().split("/")[3].includes('xpvnsulc')) return true;
-    //     return false;
-    // }
-
     private async disableIntegrityCheckRequests(page: Page): Promise<void> {
         await page.route('**/send', route => route.abort());
         await page.route('**/list', route => route.abort());
@@ -232,16 +216,6 @@ export default class MegaMarketParser extends MarketPlaceParser {
         await page.route('**/menu', route => route.abort());
         await page.route('**/findByOffer', route => route.abort());
     }
-
-    // private async checkForIntegrityDetection(page: Page) {
-    //     try {
-    //         await page.waitForSelector(`.pui-empty__content`, { timeout: 2000 });
-    //         throw new Error("Integrity check failed. Parser detected!")
-    //     } catch (e) {
-    //         if (e instanceof playwright.errors.TimeoutError) return;
-    //         throw e;
-    //     }
-    // }
 
     private async parseProduct(card: Locator): Promise<ProductPreview> {
         const name = <string> await this.safeGetAttribute(
