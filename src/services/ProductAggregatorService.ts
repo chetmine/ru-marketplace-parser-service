@@ -171,10 +171,11 @@ export default class ProductAggregatorService {
 
         const pages = await Promise.all(parsers.map(() => context.newPage()));
 
+        let parserPassedCount = 0;
+
         try {
             const results = await Promise.allSettled(
                 parsers.map(async (parser, index) => {
-
                     try {
                         const method = getParserMethod(parser);
                         const result = await method(pages[index], query);
@@ -184,7 +185,7 @@ export default class ProductAggregatorService {
                         if (Array.isArray(result)) {
                             await this.parserPublisherService.publishProductsPreview(
                                 <ProductPreview[]><unknown>result,
-                                sessionId
+                                sessionId,
                             ).catch((e: any) => {
                                 this.logger.warn(`Failed to publish result: ${e.message}`);
                             })
@@ -203,6 +204,8 @@ export default class ProductAggregatorService {
                     } catch (e: any) {
                         this.logger.warn(`Parser failed: ${e.message}`);
                         throw e;
+                    } finally {
+                        parserPassedCount += 1;
                     }
                 })
             );

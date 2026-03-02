@@ -1,4 +1,4 @@
-import RabbitMQPublisher from "../../infrastructure/RabbitMQPublisher";
+import RabbitMQPublisher from "../../infrastructure/rabbitmq/RabbitMQPublisher";
 import {Product, ProductPreview} from "./MarketPlaceParser";
 
 export default class ParserPublisherService {
@@ -13,10 +13,14 @@ export default class ParserPublisherService {
     public async publishProductDetailed(
         product: Product,
         sessionId: string,
+        isDone: boolean = false
     ): Promise<void> {
-        await this.publisher.publish<Product>(
-            product,
-            `marketplace`,
+        await this.publisher.publish(
+            {
+                data: product,
+                isDone
+            },
+            `marketplace.parser`,
             `marketplace.parsed.detailed.${sessionId}`,
         );
     }
@@ -24,10 +28,14 @@ export default class ParserPublisherService {
     public async publishProductsPreview(
         products: ProductPreview[],
         sessionId: string,
+        isDone: boolean = false
     ): Promise<void> {
-        await this.publisher.publish<ProductPreview[]>(
-            products,
-            'marketplace',
+        await this.publisher.publish(
+            {
+                data: products,
+                isDone
+            },
+            'marketplace.parser',
             `marketplace.parsed.preview.${sessionId}`,
         );
     }

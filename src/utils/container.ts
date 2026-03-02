@@ -23,8 +23,8 @@ import { EventEmitter } from 'events'
 import ProxyHandler from "../handlers/ProxyHandler";
 import BrowserProxyService from "../services/proxy/BrowserProxyService";
 import BrowserContextManager from "../services/BrowserContextManager";
-import RabbitMQConnection from "../infrastructure/RabbitMQConnection";
-import RabbitMQPublisher from "../infrastructure/RabbitMQPublisher";
+import RabbitMQConnection from "../infrastructure/rabbitmq/RabbitMQConnection";
+import RabbitMQPublisher from "../infrastructure/rabbitmq/RabbitMQPublisher";
 import ParserPublisherService from "../services/parser/ParserPublisherService";
 import SessionService from "../services/SessionService";
 import BrowserRoutes from "../routes/BrowserRoutes";

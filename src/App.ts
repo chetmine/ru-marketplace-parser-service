@@ -12,7 +12,7 @@ import PrismaService from "./services/PrismaService";
 import ProxyScheduler from "./jobs/ProxyScheduler";
 import ProxyHandler from "./handlers/ProxyHandler";
 import MegaMarketParser from "./services/parser/parsers/MegaMarketParser";
-import RabbitMQConnection from "./infrastructure/RabbitMQConnection";
+import RabbitMQConnection from "./infrastructure/rabbitmq/RabbitMQConnection";
 
 export default class App {
 
