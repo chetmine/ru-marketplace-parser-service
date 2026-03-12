@@ -4,11 +4,12 @@ import ParserPublisherService from "../ParserPublisherService";
 
 export default class MagnitMarketParser extends MarketPlaceParser {
 
+
     private readonly isSaveScreenshots: boolean;
 
     // @ts-ignore
-    constructor({config}) {
-        super();
+    constructor({config, name}) {
+        super(name);
 
         this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
     }

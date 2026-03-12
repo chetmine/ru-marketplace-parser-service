@@ -48,6 +48,11 @@ export interface ProductFeature {
 }
 
 export abstract class MarketPlaceParser {
+    protected name: string;
+
+    constructor(name: string) {
+        this.name = name;
+    }
 
     abstract fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<ProductPreview[]>;
     abstract fetchProductInfo(page: Page, productPath: string): Promise<Product>;
@@ -57,10 +62,14 @@ export abstract class MarketPlaceParser {
         const foundProducts = products || await this.fetchProducts(page, productName, false);
 
         const matchedProduct = ProductSearchService.search(productName, foundProducts);
-        if (!matchedProduct) return null;
+        if (!matchedProduct[0]) return null;
 
         return await this.fetchProductInfo(page, matchedProduct[0].link);
     };
+
+    public getName() {
+        return this.name;
+    }
 
     protected async safeFetchText(element: Locator, timeout = 1000) {
         try {
