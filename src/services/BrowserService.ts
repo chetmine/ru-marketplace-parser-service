@@ -42,6 +42,7 @@ export default class BrowserService {
     declare private redis: Redis;
     private readonly contextTTL: number;
     private readonly uaOs: 'windows' | 'macos' | 'linux';
+    private readonly playwrightTimeout: number
 
     // @ts-ignore
     constructor({redisClient, proxyService, projectConfig}) {
@@ -49,6 +50,7 @@ export default class BrowserService {
 
         this.contextTTL = projectConfig.CONTEXT_DATA_TTL;
         this.uaOs = projectConfig.UA_OS;
+        this.playwrightTimeout = projectConfig.PLAYWRIGHT_TIMEOUT;
 
         this.redisClient = redisClient;
         this.proxyService = proxyService;
@@ -156,7 +158,7 @@ export default class BrowserService {
             });
         });
 
-        context.setDefaultTimeout(20_000);
+        context.setDefaultTimeout(this.playwrightTimeout);
         return context;
     }
 
