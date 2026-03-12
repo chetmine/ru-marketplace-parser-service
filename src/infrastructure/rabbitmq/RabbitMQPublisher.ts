@@ -20,6 +20,7 @@ export default class RabbitMQPublisher {
 
         const content = Buffer.from(JSON.stringify(payload));
 
+
         channel.publish(
             exchange,
             routingKey,

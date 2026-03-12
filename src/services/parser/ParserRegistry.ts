@@ -14,7 +14,7 @@ export default class ParserRegistry {
 
     public registerParser(name: string, parserClass: new (...args: any[]) => MarketPlaceParser) {
         this.container.register({
-            [name]: asClass(parserClass).inject(() => ({ config: this.config })).singleton(),
+            [name]: asClass(parserClass).inject(() => ({ config: this.config, name })).singleton(),
         });
     }
 

@@ -33,21 +33,50 @@ export default class TaskConsumer {
 
     async startConsuming() {
         const channel = this.rabbitMQConnection.getChannel();
-        await channel.prefetch(1);
+        await channel.prefetch(10);
 
         try {
-            await channel.consume(`${Exchanges.TASKS}.*`, async (msg) => {
+            await channel.consume(`${Exchanges.TASKS}.preview`, async (msg) => {
                 if (msg) {
-
-                    const taskType = msg.fields.routingKey as 'preview' | 'detailed';
+                    this.logger.debug(`Received new preview task message: ${msg.content.toString()}`);
+                    const taskType = 'preview';
                     const task = <ParseTask> {
                         type: taskType,
                         ...JSON.parse(msg.content.toString())
                     }
 
-                    await this.taskHandler.handle(task);
+                    try {
+                        await this.taskHandler.handle(task);
 
-                    channel.ack(msg);
+                        channel.ack(msg);
+                    } catch (e: any) {
+                        this.logger.error(`Failed to handle task ${msg.fields.routingKey.toString()}: ${e.message}`);
+                        await this.taskHandler.sendError(task, e);
+                        channel.nack(msg, false, false);
+                    }
+                }
+            });
+
+            await channel.consume(`${Exchanges.TASKS}.detailed`, async (msg) => {
+                if (msg) {
+
+                    this.logger.debug(`Received new detailed task message: ${msg.content.toString()}`);
+
+                    const taskType = 'detailed';
+                    const task = <ParseTask> {
+                        type: taskType,
+                        ...JSON.parse(msg.content.toString())
+                    }
+
+                    try {
+                        await this.taskHandler.handle(task);
+
+                        channel.ack(msg);
+                    } catch (e: any) {
+                        this.logger.error(`Failed to handle task ${msg.fields.routingKey.toString()}: ${e.message}`);
+                        await this.taskHandler.sendError(task, e);
+                        channel.nack(msg, false, false);
+                    }
                 }
             });
         } catch (error: any) {
