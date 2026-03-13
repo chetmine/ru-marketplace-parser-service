@@ -16,37 +16,40 @@ export default class TaskHandler {
     async handle(task: ParseTask): Promise<void> {
 
         return new Promise(async (resolve, reject) => {
+            try {
+                const intervalId = setInterval(() => {
+                    reject(new Error("Timeout error."));
+                }, 5 * 60 * 1000); // 5 minutes
 
-            const intervalId = setInterval(() => {
-                reject(new Error("Timeout error."));
-            }, 5 * 60 * 1000); // 5 minutes
+                if (task.type === "preview") {
+                    // Product Aggregator Service automatically publishes tasks to the queue.
+                    await this.productAggregatorService.searchProducts(
+                        task.sessionId,
+                        task.query,
+                        task.params
+                    );
+                    clearInterval(intervalId);
+                    resolve();
+                    return;
+                }
 
-            if (task.type === "preview") {
-                // Product Aggregator Service automatically publishes tasks to the queue.
-                await this.productAggregatorService.searchProducts(
-                    task.sessionId,
-                    task.query,
-                    task.params
-                );
+                if (task.type === "detailed") {
+                    // Product Aggregator Service automatically publishes tasks to the queue.
+                    await this.productAggregatorService.searchProductDetailed(
+                        task.sessionId,
+                        task.query,
+                        task.params
+                    );
+                    clearInterval(intervalId);
+                    resolve();
+                    return;
+                }
+
                 clearInterval(intervalId);
-                resolve();
-                return;
+                reject(new Error("Unexpected task type"));
+            } catch (e) {
+                reject(e);
             }
-
-            if (task.type === "detailed") {
-                // Product Aggregator Service automatically publishes tasks to the queue.
-                await this.productAggregatorService.searchProductDetailed(
-                    task.sessionId,
-                    task.query,
-                    task.params
-                );
-                clearInterval(intervalId);
-                resolve();
-                return;
-            }
-
-            clearInterval(intervalId);
-            reject(new Error("Unexpected task type"));
         });
     }
 
