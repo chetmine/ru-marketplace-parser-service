@@ -6,6 +6,7 @@ import Redis from "ioredis";
 interface RedisConfig {
     host: string;
     port: number;
+    username: string;
     password?: string;
     db?: number;
     keyPrefix?: string;
@@ -27,6 +28,7 @@ export default class RedisClient {
         this.REDIS_CONFIG = {
             host: config.host,
             port: config.port,
+            username: config.username,
             password: config.password,
             db: config.db,
             keyPrefix: config.keyPrefix,

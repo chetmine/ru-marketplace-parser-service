@@ -2,7 +2,7 @@ import winston from 'winston'
 import {asClass, asValue, createContainer, InjectionMode} from 'awilix'
 import App from "../App";
 import WebServer from "../WebServer";
-import {projectConfig, rabbitMQConfig, redisConfig, webServerConfig} from "../configs/config";
+import {productCacheConfig, projectConfig, rabbitMQConfig, redisConfig, webServerConfig} from "../configs/config";
 import ProductController from "../controllers/ProductController";
 import ProductRoutes from "../routes/ProductRoutes";
 import RedisClient from "../redis/RedisClient";
@@ -29,6 +29,9 @@ import ParserPublisherService from "../services/parser/ParserPublisherService";
 import SessionService from "../services/SessionService";
 import BrowserRoutes from "../routes/BrowserRoutes";
 import BrowserController from "../controllers/BrowserController";
+import TaskConsumer from "../services/parser/consumer/TaskConsumer";
+import TaskHandler from "../services/parser/consumer/TaskHandler";
+import ProductCacheService from "../services/ProductCacheService";
 
 const logger = winston.createLogger({
     level: 'debug',
@@ -93,11 +96,14 @@ export function registerContainer() {
             config: projectConfig
         })).singleton(),
         productAggregatorService: asClass(ProductAggregatorService).singleton(),
-        parserPublisherService: asClass(ParserPublisherService).singleton(),
-        //productSearchService: asClass(ProductSearchService).singleton(),
+        productCacheService: asClass(ProductCacheService).singleton().inject(() => ({
+            config: productCacheConfig
+        })),
 
-        ozonParser: asClass(OzonParser).singleton(),
-        wildBerriesParser: asClass(WildBerriesParser).singleton(),
+        parserPublisherService: asClass(ParserPublisherService).singleton(),
+
+        taskConsumer: asClass(TaskConsumer).singleton(),
+        taskHandler: asClass(TaskHandler).singleton(),
 
         productController: asClass(ProductController).singleton(),
         productRoutes: asClass(ProductRoutes).singleton(),

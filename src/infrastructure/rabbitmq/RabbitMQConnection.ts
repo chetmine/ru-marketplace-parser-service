@@ -2,6 +2,7 @@ import amqplib, {Connection, Channel, ChannelModel} from "amqplib";
 import {Logger} from "winston";
 import {loggerFactory} from "../../utils/logger";
 import {assertTopology} from "./topology";
+import {EventEmitter} from "events";
 
 
 export interface RabbitMQConfig {
@@ -13,68 +14,67 @@ export default class RabbitMQConnection {
     declare private channel: Channel;
 
     private readonly connectionUrl: string;
-
     private readonly logger: Logger;
 
+    private readonly eventBus: EventEmitter;
+
+    private isConnecting: boolean = false;
+    private reconnectAttempts: number = 0;
+
+    private readonly MAX_RECONNECT_ATTEMPTS = 10;
+    private readonly RECONNECT_DELAY_MS = 5000;
+
     // @ts-ignore
-    constructor({config}) {
+    constructor({config, eventBus}) {
         this.connectionUrl = config.url;
 
         this.logger = loggerFactory(this);
+
+        this.eventBus = eventBus;
     }
 
     public async connect() {
-        this.connection = await amqplib.connect(this.connectionUrl);
-        this.channel = await this.connection.createChannel();
+        if (this.isConnecting) return;
+        this.isConnecting = true;
 
-        this.connection.on('close', () => {
-            this.logger.info('Connection closed.');
-        });
+        try {
+            this.connection = await amqplib.connect(this.connectionUrl);
+            this.channel = await this.connection.createChannel();
 
-        this.connection.on('error', (err) => {
-            this.logger.error(`Connection Error. Reason: ${err.message}`);
-        });
+            this.reconnectAttempts = 0;
+            this.isConnecting = false;
 
-        this.logger.info(`Connected.`);
+            this.connection.on('close', () => {
+                this.logger.warn('Connection closed. Reconnecting...');
+                this.scheduleReconnect();
+            });
+
+            this.connection.on('error', (err) => {
+                this.logger.error(`Connection error: ${err.message}`);
+            });
+
+            this.eventBus.emit('rabbitmq.connected');
+
+            this.logger.info('Connected.');
+        } catch (err: any) {
+            this.isConnecting = false;
+            this.logger.error(`Failed to connect: ${err.message}`);
+            this.scheduleReconnect();
+        }
     }
 
-    public async setup() {
+    private scheduleReconnect(): void {
+        if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
+            this.logger.error('Max reconnect attempts reached. Giving up.');
+            throw new Error("Failed to reconnect RabbitMQ. Max reconnect attempts reached.");
+        }
 
-        await assertTopology(this.channel);
+        this.reconnectAttempts++;
 
-        // await this.channel.assertExchange('marketplace', 'topic', { durable: true });
-        //
-        // await this.channel.assertQueue(`marketplace.parser.detailed`, {
-        //     durable: true,
-        //     messageTtl: 60 * 1000
-        // });
-        //
-        // await this.channel.assertQueue(`marketplace.parser.preview`, {
-        //     durable: true,
-        //     messageTtl: 60 * 1000
-        // });
-        //
-        // await this.channel.assertQueue(`marketplace.parser.preview`, {
-        //     durable: true,
-        //     messageTtl: 60 * 1000
-        // });
-        //
-        // await this.channel.assertQueue(`marketplace.parser.preview`, {
-        //     durable: true,
-        //     messageTtl: 60 * 1000
-        // });
-        //
-        // await this.channel.bindQueue(
-        //     'marketplace.parser.detailed',
-        //     'marketplace',
-        //     'marketplace.parsed.detailed.*'
-        // );
-        //
-        // await this.channel.bindQueue(
-        //     'marketplace.parser.preview',
-        //     'marketplace',
-        //     'marketplace.parsed.preview.*',
-        // );
+        const delay = this.RECONNECT_DELAY_MS * this.reconnectAttempts;
+        this.logger.info(`Reconnect attempt ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`);
+
+        setTimeout(() => this.connect(), delay);
     }
 
     getChannel() {

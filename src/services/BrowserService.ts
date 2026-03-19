@@ -1,11 +1,14 @@
 import {Logger} from "winston";
-import {Browser, BrowserContext, chromium} from "playwright";
+import {Browser, BrowserContext} from "playwright";
+import { firefox } from 'playwright-extra'
+import { launchOptions } from 'camoufox-js';
+
 import cron from 'node-cron'
 import {loggerFactory} from "../utils/logger";
 import RedisClient from "../redis/RedisClient";
 import Redis from "ioredis";
-import {ChromiumUserAgentGenerator} from "../utils/ChromiumUserAgentGenerator";
 import ProxyService from "./proxy/ProxyService";
+import {FirefoxUserAgentGenerator} from "../utils/FirefoxUserAgentGenerator";
 
 
 export interface ContextData {
@@ -39,6 +42,7 @@ export default class BrowserService {
     declare private redis: Redis;
     private readonly contextTTL: number;
     private readonly uaOs: 'windows' | 'macos' | 'linux';
+    private readonly playwrightTimeout: number
 
     // @ts-ignore
     constructor({redisClient, proxyService, projectConfig}) {
@@ -46,6 +50,7 @@ export default class BrowserService {
 
         this.contextTTL = projectConfig.CONTEXT_DATA_TTL;
         this.uaOs = projectConfig.UA_OS;
+        this.playwrightTimeout = projectConfig.PLAYWRIGHT_TIMEOUT;
 
         this.redisClient = redisClient;
         this.proxyService = proxyService;
@@ -55,35 +60,21 @@ export default class BrowserService {
 
         this.redis = this.redisClient.getInstance();
 
-        //chromium.use(StealthMode());
 
-        this.browser = await chromium.launch({
-            headless: false,
-            args: [
-                '--disable-blink-features=AutomationControlled',
-                '--disable-dev-shm-usage',
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                // '--disable-web-security',
-                // '--disable-features=IsolateOrigins,site-per-process',
-                // '--start-maximized',
-                // '--disable-extensions',
-                // '--disable-infobars',
-                // '--enable-automation',
-                // '--no-first-run',
-                // '--enable-webgl',
-                // "--disable-dev-mode",
-                // "--disable-debug-mode",
-                // "--profile-directory=ceddys",
-                '--headless=new'
-            ],
+        this.browser = await firefox.launch({
+            ...await launchOptions({
+                os: this.uaOs,
+                // @ts-ignore
+                virtual_display: true,
+                headless: true
+            })
         });
-
-
 
         cron.schedule('* * * * *', this.cleanup.bind(this));
 
         this.logger.info(`Successfully ran ${this.browser.browserType().name()} browser.`);
+
+        //this.launchTest();
     }
 
 
@@ -147,7 +138,6 @@ export default class BrowserService {
             permissions: ['geolocation', 'notifications'],
             extraHTTPHeaders: {
                 'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-                // 'Sec-CH-UA': 'Not:A-Brand";v="99", "Google Chrome";v="145", "Chromium";v="145'
             },
             javaScriptEnabled: true,
             ignoreHTTPSErrors: true,
@@ -162,26 +152,19 @@ export default class BrowserService {
         }));
     }
 
-    private async configureContext(context: BrowserContext): Promise<BrowserContext> {
+    private async configureContext(context: BrowserContext): Promise<BrowserContext> {;
         await context.addInitScript(() => {
-            (window as any).chrome = {
-                runtime: {},
-            };
-
-            // const getParameter = WebGLRenderingContext.prototype.getParameter;
-            // WebGLRenderingContext.prototype.getParameter = function(parameter) {
-            //     if (parameter === 37445) return 'Google Inc. (NVIDIA)';  // UNMASKED_VENDOR_WEBGL
-            //     if (parameter === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)';  // UNMASKED_RENDERER_WEBGL
-            //     return getParameter.call(this, parameter);
-            // };
-            //
-            // Object.defineProperty(navigator, 'platform', {
-            //     get: () => 'Win32',
-            // });
+            Object.defineProperty(navigator, 'language', {
+                get: () => 'ru-RU',
+                configurable: true,
+            });
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['ru-RU', 'ru', 'en-US', 'en'],
+                configurable: true,
+            });
         });
 
-
-        context.setDefaultTimeout(20_000);
+        context.setDefaultTimeout(this.playwrightTimeout);
         return context;
     }
 
@@ -221,7 +204,7 @@ export default class BrowserService {
         const timezones = ['Europe/Moscow'];
 
         return {
-            userAgent: ChromiumUserAgentGenerator.generate({ os: this.uaOs, mobile: false }),
+            userAgent: FirefoxUserAgentGenerator.generate({ os: this.uaOs, mobile: false }),
             geolocation: geolocations[Math.floor(Math.random() * geolocations.length)],
             viewport: { width: 1920, height: 1080 },
             locale: 'ru-RU',
@@ -315,6 +298,11 @@ export default class BrowserService {
         await context.close();
 
         return fingerprint;
+    }
+
+    async launchTest() {
+        const { context } = await this.getContextData("__test__");
+        const page = await context.newPage();
     }
 
     private async loadFromRedis(userId: string): Promise<ContextData | null> {

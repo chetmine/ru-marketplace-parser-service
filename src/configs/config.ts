@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import {detectOS} from "../utils/detect-os";
+import {ProductCacheConfig} from "../services/ProductCacheService";
 dotenv.config();
 
 export const webServerConfig = {
@@ -10,6 +11,7 @@ export const webServerConfig = {
 export const redisConfig = {
     host: process.env.REDIS_HOST,
     port: process.env.REDIS_PORT,
+    username: process.env.REDIS_USER,
     password: process.env.REDIS_PASSWORD,
 
     keyPrefix: 'marketplace-parser:',
@@ -22,8 +24,14 @@ export const rabbitMQConfig = {
 export const projectConfig = {
     DEBUG_PARSER_ERRORS: true,
     SAVE_SCREENSHOTS: false,
-    UA_OS: detectOS(),
+    UA_OS: 'windows',
     CONTEXT_DATA_TTL: 10 * 60 * 1000,
     MAX_REQUESTS_PER_SESSION: 3,
-    FETCH_PRODUCTS_MAX_RETRY_ATTEMPTS: 3
+    FETCH_PRODUCTS_MAX_RETRY_ATTEMPTS: 3,
+    PLAYWRIGHT_TIMEOUT: 2 * 60 * 1000 // in ms
+}
+
+export const productCacheConfig: ProductCacheConfig = {
+    detailedTtlSeconds: 5 * 60,
+    previewTtlSeconds: 5 * 60
 }

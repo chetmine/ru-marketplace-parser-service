@@ -41,6 +41,7 @@
     "brace-expansion": "^1.1.12",
     "braces": "^3.0.3",
     "buffer-from": "^1.1.2",
+    "camoufox-js": "^0.9.1",
     "chokidar": "^3.6.0",
     "concat-map": "^0.0.1",
     "cors": "^2.8.6",

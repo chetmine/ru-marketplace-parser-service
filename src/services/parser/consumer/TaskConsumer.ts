@@ -2,6 +2,7 @@ import RabbitMQConnection from "../../../infrastructure/rabbitmq/RabbitMQConnect
 import TaskHandler from "./TaskHandler";
 import {Logger} from "winston";
 import {Exchanges} from "../../../infrastructure/rabbitmq/topology";
+import {EventEmitter} from "events";
 
 export type ParseTask = {
     sessionId: string
@@ -22,32 +23,71 @@ export default class TaskConsumer {
 
     private readonly logger: Logger;
 
+    private readonly eventBus: EventEmitter;
+
     // @ts-ignore
-    constructor({rabbitMQConnection, taskHandler, logger}) {
+    constructor({rabbitMQConnection, taskHandler, logger, eventBus}) {
         this.rabbitMQConnection = rabbitMQConnection;
 
         this.taskHandler = taskHandler;
 
         this.logger = logger;
+
+        this.eventBus = eventBus;
+    }
+
+    setupEventListeners() {
+        this.eventBus.on('rabbitmq.connected', this.startConsuming.bind(this));
     }
 
     async startConsuming() {
         const channel = this.rabbitMQConnection.getChannel();
-        await channel.prefetch(1);
+        await channel.prefetch(2);
+
+        this.logger.info('Starting task consumer');
 
         try {
-            await channel.consume(`${Exchanges.TASKS}.*`, async (msg) => {
+            await channel.consume(`${Exchanges.TASKS}.preview`, async (msg) => {
                 if (msg) {
-
-                    const taskType = msg.fields.routingKey as 'preview' | 'detailed';
+                    this.logger.debug(`Received new preview task message: ${msg.content.toString()}`);
+                    const taskType = 'preview';
                     const task = <ParseTask> {
                         type: taskType,
                         ...JSON.parse(msg.content.toString())
                     }
 
-                    await this.taskHandler.handle(task);
+                    try {
+                        await this.taskHandler.handle(task);
 
-                    channel.ack(msg);
+                        channel.ack(msg);
+                    } catch (e: any) {
+                        this.logger.error(`Failed to handle task ${msg.fields.routingKey.toString()}: ${e.message}`);
+                        await this.taskHandler.sendError(task, e);
+                        channel.nack(msg, false, false);
+                    }
+                }
+            });
+
+            await channel.consume(`${Exchanges.TASKS}.detailed`, async (msg) => {
+                if (msg) {
+
+                    this.logger.debug(`Received new detailed task message: ${msg.content.toString()}`);
+
+                    const taskType = 'detailed';
+                    const task = <ParseTask> {
+                        type: taskType,
+                        ...JSON.parse(msg.content.toString())
+                    }
+
+                    try {
+                        await this.taskHandler.handle(task);
+
+                        channel.ack(msg);
+                    } catch (e: any) {
+                        this.logger.error(`Failed to handle task ${msg.fields.routingKey.toString()}: ${e.message}`);
+                        await this.taskHandler.sendError(task, e);
+                        channel.nack(msg, false, false);
+                    }
                 }
             });
         } catch (error: any) {

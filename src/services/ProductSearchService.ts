@@ -2,7 +2,7 @@ import {Product, ProductPreview} from "./parser/MarketPlaceParser";
 
 export default class ProductSearchService {
 
-    private static readonly MIN_SCORE: number = 0;
+    private static readonly MIN_SCORE: number = 20;
 
     constructor() {}
 

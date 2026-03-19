@@ -24,7 +24,6 @@ export default class ProductController {
 
     public async searchProducts(req: Request, res: Response) {
         try {
-
             const product = <string> req.query?.name;
             const marketplace = req.query?.marketplace;
             const retryOnParserExposed = req.query?.retryOnParserExposed;
@@ -43,7 +42,7 @@ export default class ProductController {
 
             res.status(200).json({
                 message: `Products received.`,
-                products: products.sort((a, b) => a.price - b.price),
+                products: products,
             });
 
         } catch (e: any) {

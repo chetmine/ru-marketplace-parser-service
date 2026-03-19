@@ -13,6 +13,7 @@ import ProxyScheduler from "./jobs/ProxyScheduler";
 import ProxyHandler from "./handlers/ProxyHandler";
 import MegaMarketParser from "./services/parser/parsers/MegaMarketParser";
 import RabbitMQConnection from "./infrastructure/rabbitmq/RabbitMQConnection";
+import TaskConsumer from "./services/parser/consumer/TaskConsumer";
 
 export default class App {
 
@@ -23,6 +24,8 @@ export default class App {
     private readonly redisClient: RedisClient;
     private readonly browserService: BrowserService;
 
+    private readonly taskConsumer: TaskConsumer;
+
     private readonly rabbitMQConnection: RabbitMQConnection;
 
     private readonly proxyScheduler: ProxyScheduler;
@@ -32,7 +35,7 @@ export default class App {
 
 
     // @ts-ignore
-    constructor({webServer, redisClient, browserService, parserRegistry, prismaService, proxyScheduler, proxyHandler, rabbitMQConnection}) {
+    constructor({webServer, redisClient, browserService, parserRegistry, prismaService, proxyScheduler, proxyHandler, rabbitMQConnection, taskConsumer}) {
         this.logger = loggerFactory(this);
 
         this.prismaService = prismaService;
@@ -46,15 +49,15 @@ export default class App {
         this.parserRegistry = parserRegistry;
 
         this.rabbitMQConnection = rabbitMQConnection;
+
+        this.taskConsumer = taskConsumer;
     }
 
     public async init() {
+        this.taskConsumer.setupEventListeners();
 
         await this.prismaService.connect();
         await this.redisClient.init();
-
-        await this.rabbitMQConnection.connect();
-        await this.rabbitMQConnection.setup();
 
         this.webServer.init();
         this.webServer.start();
@@ -66,6 +69,8 @@ export default class App {
         this.parserRegistry.registerParser("yandexMarket", YandexMarketParser);
         this.parserRegistry.registerParser("wildberries", WildBerriesParser);
         this.parserRegistry.registerParser("ozon", OzonParser);
+
+        await this.rabbitMQConnection.connect();
 
         this.proxyScheduler.init();
         this.proxyHandler.init();

@@ -4,11 +4,12 @@ import ParserPublisherService from "../ParserPublisherService";
 
 export default class MagnitMarketParser extends MarketPlaceParser {
 
+
     private readonly isSaveScreenshots: boolean;
 
     // @ts-ignore
-    constructor({config}) {
-        super();
+    constructor({config, name}) {
+        super(name);
 
         this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
     }
@@ -24,13 +25,13 @@ export default class MagnitMarketParser extends MarketPlaceParser {
 
         await page.goto(url, { waitUntil: 'domcontentloaded' });
 
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-search.png` });
+
+        await page.waitForSelector(".products-listing__grid");
+
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-search-loaded.png` });
 
-        await page.waitForSelector(".products-list");
-
-        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-search-loaded.png` });
-
-        const cards = await page.locator('div[class*="product-card-"]').all();
+        const cards = await page.locator('a[class="product-card"]').all();
         cards.splice(10);
 
         const products = await Promise.all(
@@ -55,7 +56,7 @@ export default class MagnitMarketParser extends MarketPlaceParser {
             50
         );
 
-        const href = <string> await card.locator('a').first().getAttribute('href');
+        const href = <string> await card.getAttribute('href');
 
         const imgUrl = await card.locator('img').first().getAttribute('src');
 
@@ -79,9 +80,9 @@ export default class MagnitMarketParser extends MarketPlaceParser {
         await this.randomDelay();
         await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
-        await page.waitForSelector(".product-body");
-
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/mm/product-info.png` });
+
+        await page.waitForSelector(".product-body");
 
         const productContainer = page.locator('.product-body');
 

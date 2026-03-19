@@ -6,34 +6,44 @@ import {Logger} from "winston";
 import {loggerFactory} from "../utils/logger";
 import ParserPublisherService from "./parser/ParserPublisherService";
 import SessionService, {SessionIsBusyError} from "./SessionService";
+import ProductCacheService from "./ProductCacheService";
 
 
 export interface SearchProductOptions {
     marketplace?: string
     retryOnParserExposed?: boolean
+    denyMessagePublishing?: boolean
 }
+
+// interface ExcludedParsersData {
+//     sessionId: string,
+//     parsers: string[]
+// }
 
 type ParserMethod<T> = (page: Page, query: string) => Promise<T>;
 
 export default class ProductAggregatorService {
-
     private readonly MAX_RETRY_ATTEMPTS: number;
 
     private readonly parserRegistry: ParserRegistry;
     private readonly browserContextManager: BrowserContextManager;
 
     private readonly parserPublisherService: ParserPublisherService;
+    protected readonly productCacheService: ProductCacheService;
     private readonly sessionService: SessionService;
 
     private readonly logger: Logger;
 
+    private excludedParsersData = new Map<string, string[]>();
+
     // @ts-ignore
-    constructor({parserRegistry, browserContextManager, parserPublisherService, sessionService, projectConfig}) {
+    constructor({parserRegistry, browserContextManager, parserPublisherService, sessionService, projectConfig, productCacheService}) {
         this.parserRegistry = parserRegistry;
 
         this.browserContextManager = browserContextManager;
 
         this.parserPublisherService = parserPublisherService;
+        this.productCacheService = productCacheService;
         this.sessionService = sessionService;
 
         this.logger = loggerFactory(this);
@@ -45,7 +55,28 @@ export default class ProductAggregatorService {
         id: string,
         query: string,
         options?: SearchProductOptions,
-    ): Promise<ProductPreview[]> {
+    ): Promise<ProductPreview[][]> {
+
+        const cached = await this.productCacheService.getPreview(query, options?.marketplace);
+        if (cached) {
+
+            if (!options?.denyMessagePublishing) {
+                for (const marketplacePreviews of cached) {
+                    await this.parserPublisherService.publishProductsPreview(
+                        <ProductPreview[]><unknown>marketplacePreviews,
+                        id,
+                    ).catch((e: any) => {
+                        this.logger.warn(`Failed to publish result: ${e.message}`);
+                    })
+                }
+
+                await this.parserPublisherService.publishParsingFinished(id);
+            }
+
+            this.logger.debug(`Cache HIT for searchProducts: "${query}"`);
+            return cached;
+        }
+
         const productsPreview = await this.executeWithRetry(
             id,
             async (context: BrowserContext) => {
@@ -60,8 +91,10 @@ export default class ProductAggregatorService {
             options
         );
 
-
-        return productsPreview.flat();
+        if (this.hasAllMarketplaces(productsPreview.flat())) {
+            await this.productCacheService.setPreview(query, productsPreview, options?.marketplace);
+        }
+        return productsPreview;
     }
 
     public async searchProductDetailed(
@@ -69,6 +102,32 @@ export default class ProductAggregatorService {
         query: string,
         options?: SearchProductOptions,
     ) {
+
+        const cached = await this.productCacheService.getDetailed(query, options?.marketplace);
+        if (cached) {
+
+            const allItems = [cached.product, ...cached.products];
+
+            if (!options?.denyMessagePublishing) {
+                for (const item of allItems) {
+                    await this.parserPublisherService.publishProductDetailed(
+                        <Product><unknown>item,
+                        id,
+                    ).catch((e: any) => {
+                        this.logger.warn(`Failed to publish result: ${e.message}`);
+                    })
+                }
+                await this.parserPublisherService.publishParsingFinished(id);
+            }
+
+            this.logger.debug(`Cache HIT for searchProductDetailed: "${query}"`);
+            return cached;
+        }
+
+        const cachedPreviews = await this.productCacheService.getPreview(query, options?.marketplace)
+            || await this.searchProducts(id, query, { ...options, denyMessagePublishing: true, retryOnParserExposed: false })
+        ;
+
         const products = await this.executeWithRetry(
             id,
             async (context: BrowserContext) => {
@@ -77,7 +136,11 @@ export default class ProductAggregatorService {
                     context,
                     query,
                     options,
-                    (parser: MarketPlaceParser) => parser.findProduct.bind(parser),
+                    (parser: MarketPlaceParser) =>
+                        (page: Page, q: string) => parser.findProduct(page, q, cachedPreviews
+                            .filter(pp => pp[0].marketplace === parser.getName())
+                            .flat()
+                        ),
                 );
             },
             options
@@ -90,25 +153,35 @@ export default class ProductAggregatorService {
             )
             : undefined;
 
-        const prices = products
-            .filter((result) => !!result)
-            .map(
-            (product) => {
-                return {
-                    // @ts-ignore
-                    [product.marketplace]: {
-                        name: product?.name,
-                        price: product?.price,
+        // const prices = products
+        //     .filter((result) => !!result)
+        //     .map(
+        //     (product) => {
+        //         return {
+        //             // @ts-ignore
+        //             [product.marketplace]: {
+        //                 name: product?.name,
+        //                 price: product?.price,
+        //
+        //                 link: product?.link,
+        //             },
+        //         }
+        //     }
+        // );
 
-                        link: product?.link,
-                    },
-                }
-            }
-        );
+        const filteredProducts = products.filter(product => product?.marketplace !== objectWithMostFeatures?.marketplace);
+
+
+
+        const result = { product: objectWithMostFeatures, products: filteredProducts };
+
+        if (this.hasAllMarketplaces(products.filter(p => !!p))) {
+            await this.productCacheService.setDetailed(query, result);
+        }
 
         return {
             product: objectWithMostFeatures,
-            prices: prices,
+            products: filteredProducts,
         };
     }
 
@@ -120,6 +193,7 @@ export default class ProductAggregatorService {
 
         if (!await this.sessionService.isAvailable(id)) throw new SessionIsBusyError("Session is already in use");
 
+        this.excludedParsersData.delete(id);
         const maxAttempts = this.MAX_RETRY_ATTEMPTS;
 
         for (let i = 0; i < maxAttempts; i++) {
@@ -131,6 +205,10 @@ export default class ProductAggregatorService {
 
                 await this.browserContextManager.saveContext(id, contextData);
                 await this.sessionService.setAsFree(id);
+
+                this.excludedParsersData.delete(id);
+                if (!options?.denyMessagePublishing) await this.parserPublisherService.publishParsingFinished(id);
+
                 return data;
             } catch (error: any) {
                 if (this.isProxyError(error)) {
@@ -147,12 +225,14 @@ export default class ProductAggregatorService {
                     continue;
                 }
 
+                this.excludedParsersData.delete(id);
                 throw error;
             } finally {
                 await this.sessionService.setAsFree(id);
             }
         }
 
+        this.excludedParsersData.delete(id);
         this.logger.error(`Parsing failed in context ${id}. Too many attempts!`)
         throw new Error(`Failed after ${maxAttempts} attempts due to parsing issues.`);
     }
@@ -164,51 +244,72 @@ export default class ProductAggregatorService {
         options: SearchProductOptions | undefined,
         getParserMethod: (parser: MarketPlaceParser) => ParserMethod<T>,
     ): Promise<T[]> {
-        const parsers = options?.marketplace
+        let parsers = options?.marketplace
             ? [this.parserRegistry.getParser(options.marketplace)]
             : this.parserRegistry.getAllParsers()
         ;
 
+        const excludedParsers = this.excludedParsersData.get(sessionId);
+
+        if (excludedParsers?.length) {
+            parsers = parsers.filter(parser => !excludedParsers.includes(parser.getName()))
+        }
+
         const pages = await Promise.all(parsers.map(() => context.newPage()));
 
-        let parserPassedCount = 0;
-
         try {
+
+            const succeededMarketplaceNames: string[] = [];
+
             const results = await Promise.allSettled(
                 parsers.map(async (parser, index) => {
                     try {
                         const method = getParserMethod(parser);
                         const result = await method(pages[index], query);
 
+                        if (!succeededMarketplaceNames.find(name => name === parser.getName())) succeededMarketplaceNames.push(parser.getName());
+
                         if (!result) return result;
 
-                        if (Array.isArray(result)) {
+                        if (Array.isArray(result) && !options?.denyMessagePublishing) {
+                            this.logger.debug(`Published parser products ${result.length} to message-broker`);
+
                             await this.parserPublisherService.publishProductsPreview(
                                 <ProductPreview[]><unknown>result,
                                 sessionId,
                             ).catch((e: any) => {
                                 this.logger.warn(`Failed to publish result: ${e.message}`);
                             })
+
+                            return result;
                         }
 
-                        if (typeof result === 'object') {
+                        if (typeof result === 'object' && !options?.denyMessagePublishing) {
+
+                            this.logger.debug(`Published parser result to message-broker`);
+
                             await this.parserPublisherService.publishProductDetailed(
                                 <Product><unknown>result,
-                                sessionId
+                                sessionId,
                             ).catch((e: any) => {
                                 this.logger.warn(`Failed to publish result: ${e.message}`);
                             })
+
+                            return result;
                         }
 
                         return result;
+
                     } catch (e: any) {
                         this.logger.warn(`Parser failed: ${e.message}`);
                         throw e;
-                    } finally {
-                        parserPassedCount += 1;
                     }
                 })
             );
+
+            this.logger.debug(`Succeeded parser results: ${succeededMarketplaceNames}`);
+
+            this.excludedParsersData.set(sessionId, [...new Set([...this.excludedParsersData.get(sessionId) || [], ...succeededMarketplaceNames])])
 
             const failedResults = results.filter(r => r.status === 'rejected');
             if (failedResults.length > 0 && this.hasProxyErrors(failedResults)) {
@@ -251,6 +352,13 @@ export default class ProductAggregatorService {
         return failedResults.some(
             result => result.status === 'rejected' && result.reason instanceof CaptchaError
         );
+    }
+
+    private hasAllMarketplaces(products: Product[] | ProductPreview[]) {
+        const marketplaces = this.parserRegistry.getParserNames();
+
+        const existingMarketplaces = new Set(products.map(p => p.marketplace));
+        return marketplaces.every(m => existingMarketplaces.has(m));
     }
 }
 

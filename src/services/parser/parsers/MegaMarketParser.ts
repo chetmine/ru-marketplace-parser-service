@@ -8,8 +8,8 @@ export default class MegaMarketParser extends MarketPlaceParser {
     private readonly isSaveScreenshots: boolean;
 
     // @ts-ignore
-    constructor({config}) {
-        super();
+    constructor({config, name}) {
+        super(name);
 
         this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
     }
@@ -160,7 +160,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
         const productCards = await page
             .locator('.catalog-items-list__container div[data-test="product-item"]')
             .all();
-        productCards.splice(50);
+        productCards.splice(10);
 
         return Promise.all(productCards.map(card => this.parseProduct(card)));
     }
