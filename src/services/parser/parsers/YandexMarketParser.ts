@@ -1,20 +1,31 @@
 import {MarketPlaceParser, Product, ProductFeature, ProductPreview, ScoresInfo} from "../MarketPlaceParser";
-import {Locator, Page} from "playwright";
+import playwright, {Locator, Page} from "playwright";
 import process from "node:process";
 
 export default class YandexMarketParser extends MarketPlaceParser {
     marketplaceUrl: string = "https://market.yandex.ru";
+
+    private readonly isSaveScreenshots: boolean;
+
+    // @ts-ignore
+    constructor({config}) {
+        super();
+
+        this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+    }
 
     //@ts-ignore
     async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
         await this.randomDelay();
         await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info.png` });
+
+        await this.checkForCaptcha(page);
 
         await page.waitForSelector('div[data-baobab-name="main"]');
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-info-loaded.png` });
 
         return this.parseProductInfo(page, page.locator('div[data-baobab-name="main"]'));
     }
@@ -47,7 +58,14 @@ export default class YandexMarketParser extends MarketPlaceParser {
 
 
         let scoresInfo;
-        const scoresString = await productContainer.locator(`a[data-auto="product-rating"]`).first().getAttribute("aria-label");
+        let scoresString;
+
+        try {
+            scoresString = await productContainer.locator(`a[data-auto="product-rating"]`).first().getAttribute("aria-label");
+        } catch (e) {
+
+        }
+
         if (scoresString) {
             const match = scoresString.match(/(\d+\.?\d*)\s*из\s*(\d+)/);
             if (match) {
@@ -105,22 +123,23 @@ export default class YandexMarketParser extends MarketPlaceParser {
         };
     }
 
-    async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
+    async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<ProductPreview[]> {
         const encoded = encodeURI(product);
         const url = `https://market.yandex.ru/search?text=${encoded}`;
 
         await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search.png` });
 
         await page.waitForSelector('div[data-apiary-widget-name="@marketfront/VirtualizeSerp"]', {
             timeout: 5000,
         });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search-loaded.png` });
 
         const container = page.locator('div[data-apiary-widget-name="@marketfront/SerpLayout"]');
         const cards = await container.locator('div[data-apiary-widget-name="@marketfront/SerpEntity"] article[data-auto="searchOrganic"]').all();
+        cards.splice(10);
 
         const products = await Promise.all(
             cards.map((cardElement) => (this.parseProducts(cardElement)))
@@ -158,8 +177,16 @@ export default class YandexMarketParser extends MarketPlaceParser {
         }
     }
 
-    fetchAvailableFilters(productsPage: Page): Promise<any> {
-        return Promise.resolve(undefined);
+    private async checkForCaptcha(page: Page) {
+        try {
+            const captchaForm = page.locator(`form[action*="checkcaptcha"]`)
+            await captchaForm.getAttribute(`method`, { timeout: 2000 });
+
+            throw new Error("Captcha detected!")
+        } catch (e) {
+            if (e instanceof playwright.errors.TimeoutError) return;
+            throw e;
+        }
     }
 
 }

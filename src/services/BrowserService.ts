@@ -1,24 +1,20 @@
-import {faker} from '@faker-js/faker'
 import {Logger} from "winston";
 import {Browser, BrowserContext, chromium} from "playwright";
 import cron from 'node-cron'
-
 import {loggerFactory} from "../utils/logger";
 import RedisClient from "../redis/RedisClient";
 import Redis from "ioredis";
 import {ChromiumUserAgentGenerator} from "../utils/ChromiumUserAgentGenerator";
-import ProxyService from "./ProxyService";
-
-import {ProxyData} from "@prisma-app/client";
+import ProxyService from "./proxy/ProxyService";
 
 
-interface ContextData {
+export interface ContextData {
     context: BrowserContext;
     createdAt: Date;
     lastAccessedAt: Date;
     fingerprint: ContextFingerprint;
 
-    attachedProxyData?: ProxyData;
+    attachedProxyId?: number | null;
 }
 
 interface ContextFingerprint {
@@ -41,11 +37,15 @@ export default class BrowserService {
     private readonly redisClient: RedisClient;
 
     declare private redis: Redis;
-    private contextTTL: number = 30 * 60 * 1000
+    private readonly contextTTL: number;
+    private readonly uaOs: 'windows' | 'macos' | 'linux';
 
     // @ts-ignore
-    constructor({redisClient, proxyService}) {
+    constructor({redisClient, proxyService, projectConfig}) {
         this.logger = loggerFactory(this);
+
+        this.contextTTL = projectConfig.CONTEXT_DATA_TTL;
+        this.uaOs = projectConfig.UA_OS;
 
         this.redisClient = redisClient;
         this.proxyService = proxyService;
@@ -55,16 +55,31 @@ export default class BrowserService {
 
         this.redis = this.redisClient.getInstance();
 
+        //chromium.use(StealthMode());
+
         this.browser = await chromium.launch({
-            headless: true,
+            headless: false,
             args: [
                 '--disable-blink-features=AutomationControlled',
                 '--disable-dev-shm-usage',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-web-security',
+                // '--disable-web-security',
+                // '--disable-features=IsolateOrigins,site-per-process',
+                // '--start-maximized',
+                // '--disable-extensions',
+                // '--disable-infobars',
+                // '--enable-automation',
+                // '--no-first-run',
+                // '--enable-webgl',
+                // "--disable-dev-mode",
+                // "--disable-debug-mode",
+                // "--profile-directory=ceddys",
+                '--headless=new'
             ],
         });
+
+
 
         cron.schedule('* * * * *', this.cleanup.bind(this));
 
@@ -77,48 +92,49 @@ export default class BrowserService {
      * @param {string} id
      */
 
-    async getContext(id: string): Promise<BrowserContext> {
-        let existing = this.contexts.get(id);
-
-        if (existing) {
-            existing.lastAccessedAt = new Date();
-            await this.updateRedisAccess(id);
-            return existing.context;
-        }
-
+    async getContextData(id: string): Promise<ContextData> {
         const savedState = await this.loadFromRedis(id);
 
         if (savedState) {
             const context = await this.restoreContext(savedState);
-            this.contexts.set(id, {
+            savedState.lastAccessedAt = new Date();
+
+            return {
+                ...savedState,
                 context,
-                createdAt: new Date(savedState.createdAt),
-                lastAccessedAt: new Date(),
-                fingerprint: savedState.fingerprint
-            });
-            return context;
+            }
         }
 
         const proxyData = await this.proxyService.attachProxy(id);
 
         const fingerprint = this.generateFingerprint();
-        const context = await this.createContext(fingerprint, proxyData ? proxyData : undefined);
+        const context = await this.createContext(fingerprint, proxyData?.id);
 
         const contextData: ContextData = {
             context,
             createdAt: new Date(),
             lastAccessedAt: new Date(),
             fingerprint,
-            attachedProxyData: proxyData ? proxyData : undefined,
+            attachedProxyId: proxyData?.id,
         };
 
-        this.contexts.set(id, contextData);
+        //this.contexts.set(id, contextData);
         await this.saveToRedis(id, contextData);
 
-        return context;
+        return contextData;
     }
 
-    private async createContext(fingerprint: ContextFingerprint, proxyData?: ProxyData): Promise<BrowserContext> {
+    async isContextExists(id: string): Promise<boolean> {
+        const data = await this.redis.get(`browser_context:${id}`);
+        return !!data;
+    }
+
+    public async createContext(fingerprint: ContextFingerprint, proxyDataId?: number): Promise<BrowserContext> {
+        let proxyData;
+
+        if (proxyDataId) {
+            proxyData = await this.proxyService.getProxyData(proxyDataId);
+        }
 
         return await this.configureContext(await this.browser.newContext({
             userAgent: fingerprint.userAgent,
@@ -126,10 +142,12 @@ export default class BrowserService {
             viewport: fingerprint.viewport,
             locale: fingerprint.locale,
             timezoneId: fingerprint.timezoneId,
+            colorScheme: "dark",
 
             permissions: ['geolocation', 'notifications'],
             extraHTTPHeaders: {
                 'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+                // 'Sec-CH-UA': 'Not:A-Brand";v="99", "Google Chrome";v="145", "Chromium";v="145'
             },
             javaScriptEnabled: true,
             ignoreHTTPSErrors: true,
@@ -137,46 +155,44 @@ export default class BrowserService {
                 ?
                 {
                     server: proxyData.host,
-                    username: proxyData.username ? proxyData.username : undefined,
-                    password: proxyData.password ? proxyData.password : undefined
+                    ...(proxyData.username && { username: proxyData.username }),
+                    ...(proxyData.password && { password: proxyData.password }),
                 }
                 : undefined,
         }));
     }
 
     private async configureContext(context: BrowserContext): Promise<BrowserContext> {
-        // await context.addInitScript(() => {
-        //     Object.defineProperty(navigator, 'webdriver', {
-        //         get: () => undefined,
-        //     });
-        //
-        //     Object.defineProperty(navigator, 'languages', {
-        //         get: () => ['ru-RU', 'ru', 'en-US', 'en'],
-        //     });
-        //
-        //     Object.defineProperty(navigator, 'plugins', {
-        //         get: () => [1, 2, 3, 4, 5],
-        //     });
-        //
-        //     (window as any).chrome = {
-        //         runtime: {},
-        //     };
-        //
-        //     const originalQuery = window.navigator.permissions.query;
-        //     window.navigator.permissions.query = (parameters: any) =>
-        //         parameters.name === 'notifications'
-        //             ? Promise.resolve({ state: 'prompt' } as PermissionStatus)
-        //             : originalQuery(parameters);
-        // });
+        await context.addInitScript(() => {
+            (window as any).chrome = {
+                runtime: {},
+            };
 
+            // const getParameter = WebGLRenderingContext.prototype.getParameter;
+            // WebGLRenderingContext.prototype.getParameter = function(parameter) {
+            //     if (parameter === 37445) return 'Google Inc. (NVIDIA)';  // UNMASKED_VENDOR_WEBGL
+            //     if (parameter === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)';  // UNMASKED_RENDERER_WEBGL
+            //     return getParameter.call(this, parameter);
+            // };
+            //
+            // Object.defineProperty(navigator, 'platform', {
+            //     get: () => 'Win32',
+            // });
+        });
 
 
         context.setDefaultTimeout(20_000);
-
         return context;
     }
 
     private async restoreContext(savedState: any): Promise<BrowserContext> {
+
+        const proxyData = {
+            server: savedState?.attachedProxyData?.host,
+            ...(savedState?.attachedProxyData?.username && { username: savedState.attachedProxyData.username }),
+            ...(savedState?.attachedProxyData?.password && { password: savedState.attachedProxyData.password }),
+        }
+
         return await this.configureContext(await this.browser.newContext({
             userAgent: savedState.fingerprint.userAgent,
             geolocation: savedState.fingerprint.geolocation,
@@ -191,10 +207,12 @@ export default class BrowserService {
             },
             javaScriptEnabled: true,
             ignoreHTTPSErrors: true,
+
+            proxy: savedState.attachedProxyData ? proxyData : undefined,
         }));
     }
 
-    private generateFingerprint(): ContextFingerprint {
+    public generateFingerprint(): ContextFingerprint {
         const geolocations = [
             { latitude: 59.9311, longitude: 30.3609 },
             { latitude: 55.7558, longitude: 37.6173 },
@@ -203,8 +221,7 @@ export default class BrowserService {
         const timezones = ['Europe/Moscow'];
 
         return {
-            userAgent: ChromiumUserAgentGenerator.generate({ os: 'windows', mobile: false }),
-            //userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Gecko/20100101 Firefox/147.0",
+            userAgent: ChromiumUserAgentGenerator.generate({ os: this.uaOs, mobile: false }),
             geolocation: geolocations[Math.floor(Math.random() * geolocations.length)],
             viewport: { width: 1920, height: 1080 },
             locale: 'ru-RU',
@@ -213,35 +230,42 @@ export default class BrowserService {
     }
 
 
-    public async save(userId: string, context: BrowserContext, proxyData?: ProxyData): Promise<void> {
-        const oldContext: ContextData = await this.loadFromRedis(userId);
+    public async save(id: string, contextData: ContextData): Promise<void> {
+        const oldContext = await this.loadFromRedis(id);
         if (!oldContext) throw new Error("Context must be defined in Redis.");
 
-        const contextData: ContextData = {
-            context: context,
-            createdAt: new Date(oldContext.createdAt),
-            lastAccessedAt: new Date(),
-            fingerprint: oldContext.fingerprint,
-            attachedProxyData: proxyData || oldContext.attachedProxyData,
-        }
-
-        await this.saveToRedis(userId, contextData);
+        await this.saveToRedis(id, contextData);
     }
 
-    private async saveToRedis(userId: string, data: ContextData) {
+    public async removeContext(id: string): Promise<void> {
+        //const contextData = await this.getContextData(id);
+        await this.closeContext(id);
+        await this.proxyService.unattachProxy(id);
+        await this.removeFromRedis(id);
+    }
+
+    private async removeFromRedis(id: string): Promise<void> {
+        try {
+            await this.redis.del(`browser_context:${id}`);
+        } catch (e: any) {
+            this.logger.error(`Failed to delete context in Redis: ${e.message}`);
+        }
+    }
+
+    private async saveToRedis(id: string, data: ContextData) {
         try {
             const storageState = await data.context.storageState();
 
             const redisData = {
                 fingerprint: data.fingerprint,
                 storageState,
-                createdAt: data.createdAt.toISOString(),
-                lastAccessedAt: data.lastAccessedAt.toISOString(),
-                attachedProxyData: data.attachedProxyData,
+                createdAt: data.createdAt?.toISOString(),
+                lastAccessedAt: data.lastAccessedAt?.toISOString(),
+                attachedProxyId: data.attachedProxyId,
             };
 
             await this.redis.setex(
-                `browser_context:${userId}`,
+                `browser_context:${id}`,
                 Math.floor(this.contextTTL / 1000),
                 JSON.stringify(redisData)
             );
@@ -250,10 +274,62 @@ export default class BrowserService {
         }
     }
 
-    private async loadFromRedis(userId: string): Promise<any | null> {
+    public async fingerprintTest() {
+        const fingerprint = this.generateFingerprint();
+        const context = await this.createContext(fingerprint);
+
+        const page = await context.newPage();
+        await page.goto(`https://bot.sannysoft.com/`);
+
+        const fpTestElement = page.locator(`pre[id="fp"]`);
+        const data = await fpTestElement.textContent();
+
+        await context.close();
+        return data;
+    }
+
+    public async webGLTest() {
+        const fingerprintForContext = this.generateFingerprint();
+        const context = await this.createContext(fingerprintForContext);
+        const page = await context.newPage();
+        await page.goto('about:blank');
+
+        const fingerprint = await page.evaluate(() => ({
+            canvas: (() => {
+                const c = document.createElement('canvas');
+                const ctx = c.getContext('2d');
+                ctx!.fillText('test', 10, 10);
+                return c.toDataURL();
+            })(),
+            webgl: (() => {
+                const c = document.createElement('canvas');
+                const gl = c.getContext('webgl') as WebGLRenderingContext;
+                return gl?.getParameter(gl.RENDERER);
+            })(),
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            hardwareConcurrency: navigator.hardwareConcurrency,
+            deviceMemory: (navigator as any).deviceMemory,
+        }));
+
+        await context.close();
+
+        return fingerprint;
+    }
+
+    private async loadFromRedis(userId: string): Promise<ContextData | null> {
         try {
             const data = await this.redis.get(`browser_context:${userId}`);
-            return data ? JSON.parse(data) : null;
+            const rawContextData = data ? JSON.parse(data) : null;
+
+            if (!rawContextData) return null;
+
+            return {
+                ...rawContextData,
+                lastAccessedAt: new Date(rawContextData.lastAccessedAt),
+                createdAt: new Date(rawContextData.createdAt)
+            };
+
         } catch (error: any) {
             this.logger.error(`Failed to load context from Redis: ${error.message}`);
             return null;
@@ -287,12 +363,13 @@ export default class BrowserService {
         await Promise.all(cleanupTasks);
     }
 
-    async closeContext(userId: string) {
-        const data = this.contexts.get(userId);
-        if (data) {
-            await this.saveToRedis(userId, data);
-            await data.context.close();
-            this.contexts.delete(userId);
+    async closeContext(id: string) {
+        const contextData = await this.getContextData(id);
+        const context = contextData.context;
+
+        if (context) {
+            await this.save(id, contextData);
+            await context.close();
         }
     }
 

@@ -7,45 +7,37 @@ import BrowserService from "../services/BrowserService";
 import {MarketPlaceParser} from "../services/parser/MarketPlaceParser";
 import {faker} from "@faker-js/faker";
 import ProductAggregatorService from "../services/ProductAggregatorService";
+import {SessionIsBusyError} from "../services/SessionService";
 
 export default class ProductController {
 
     private readonly logger: Logger;
-    private readonly browserService: BrowserService;
-
-    private readonly wildberriesParser: MarketPlaceParser;
 
     private readonly productAggregatorService: ProductAggregatorService;
 
     // @ts-ignore
-    constructor({browserService, productAggregatorService, wildBerriesParser}) {
+    constructor({productAggregatorService}) {
         this.logger = loggerFactory(this);
 
-        this.browserService = browserService;
-
         this.productAggregatorService = productAggregatorService;
-
-        this.wildberriesParser = wildBerriesParser;
     }
 
-    public async searchProducts(req: Request, res: Response, next: NextFunction) {
+    public async searchProducts(req: Request, res: Response) {
         try {
 
             const product = <string> req.query?.name;
             const marketplace = req.query?.marketplace;
+            const retryOnParserExposed = req.query?.retryOnParserExposed;
 
             const id = <string>req.headers['session-id'];
             if (!id) return res.status(400).json({error: "Session-id must be provided."});
 
-            const context = await this.browserService.getContext(
-                id
-            );
-
             const products = await this.productAggregatorService.searchProducts(
-                context,
+                id,
                 product,
                 {
                     marketplace: marketplace?.toString(),
+                    retryOnParserExposed: retryOnParserExposed === "true",
                 }
             );
 
@@ -54,31 +46,32 @@ export default class ProductController {
                 products: products.sort((a, b) => a.price - b.price),
             });
 
-            await this.browserService.save(id, context);
-
         } catch (e: any) {
+
+            if (e instanceof SessionIsBusyError) {
+                return res.status(409).json({error: e.message});
+            }
+
             res.status(500).json({error: e.message});
         }
     }
 
-    public async getProduct(req: Request, res: Response, next: NextFunction) {
+    public async getProduct(req: Request, res: Response) {
         try {
 
             const name = <string> req.query?.name;
             const marketplace = req.query?.marketplace;
+            const retryOnParserExposed = req.query?.retryOnParserExposed;
 
             const id = <string>req.headers['session-id'];
             if (!id) return res.status(400).json({error: "Session-id must be provided."});
 
-            const context = await this.browserService.getContext(
-                id
-            );
-
             const data = await this.productAggregatorService.searchProductDetailed(
-                context,
+                id,
                 <string> name,
                 {
                     marketplace: marketplace?.toString(),
+                    retryOnParserExposed: retryOnParserExposed === "true",
                 }
             );
 
@@ -86,10 +79,12 @@ export default class ProductController {
                 message: `Product received.`,
                 data: data,
             });
-
-            await this.browserService.save(id, context);
-
         } catch (e: any) {
+
+            if (e instanceof SessionIsBusyError) {
+                return res.status(409).json({error: e.message});
+            }
+
             res.status(500).json({error: e.message});
         }
     }

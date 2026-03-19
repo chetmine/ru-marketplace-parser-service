@@ -1,0 +1,46 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma-app/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model ProxyData {
+  id        Int      @id @default(autoincrement())
+  protocol  String
+  host      String
+  username  String?
+  password  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proxy     Proxy?
+}
+
+model Proxy {
+  id             Int         @id @default(autoincrement())
+  status         ProxyStatus @default(ACTIVE)
+  failedAttempts Int         @default(0)
+  sessionId      String?
+
+  version        Int         @default(0)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  proxyDataId    Int         @unique
+  proxyData      ProxyData   @relation(fields: [proxyDataId], references: [id], onDelete: Cascade)
+}
+
+enum ProxyStatus {
+  ACTIVE
+  FAILED
+  SUSPENDED
+}

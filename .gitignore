@@ -1,7 +1,10 @@
 /tmp
 /out-tsc
+/dist
+/coverage
 
 .env
+.env.prod
 
 /screenshots
 /node_modules
@@ -15,4 +18,4 @@ yarn-error.log*
 .idea/
 /.idea/
 
-/src/generated/prisma
+./prisma/migrations/

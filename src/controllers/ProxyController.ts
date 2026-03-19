@@ -1,5 +1,5 @@
 import {Request, Response} from 'express';
-import ProxyService from "../services/ProxyService";
+import ProxyService from "../services/proxy/ProxyService";
 
 export default class ProxyController {
 
@@ -14,9 +14,11 @@ export default class ProxyController {
         try {
 
             const count = req.query?.count;
+            const isActive = req.query?.isActive;
 
             const proxies = await this.proxyService.getAllProxy(
                 Number(count) || 50,
+                isActive === 'true',
             );
 
             res.status(200).json({
@@ -80,6 +82,18 @@ export default class ProxyController {
         }
     }
 
+    public async removeAllProxy(req: Request, res: Response) {
+        try {
+            await this.proxyService.removeAllProxy();
+
+            res.status(200).json({
+                message: 'All proxy removed.',
+            });
+        } catch (e: any) {
+            res.status(500).json({error: e.message});
+        }
+    }
+
     public async addProxyData(req: Request, res: Response) {
         try {
 
@@ -89,6 +103,16 @@ export default class ProxyController {
                 username,
                 password,
             } = req.body;
+
+            const existingProxyData = await this.proxyService.getProxiesByHost(host);
+            if (existingProxyData.length > 0) {
+                const isProxyExist = existingProxyData.some((proxyData) => proxyData.username === username);
+                if (username && isProxyExist) {
+                    return res.status(409).json({
+                        error: 'Proxy with that host already exist.',
+                    })
+                }
+            }
 
             await this.proxyService.addProxyData(
                 {

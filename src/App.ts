@@ -8,10 +8,11 @@ import WildBerriesParser from "./services/parser/parsers/WildBerriesParser";
 import OzonParser from "./services/parser/parsers/OzonParser";
 import YandexMarketParser from "./services/parser/parsers/YandexMarketParser";
 import MagnitMarketParser from "./services/parser/parsers/MagnitMarketParser";
-import AliksonParser from "./services/parser/parsers/AliksonParser";
 import PrismaService from "./services/PrismaService";
 import ProxyScheduler from "./jobs/ProxyScheduler";
 import ProxyHandler from "./handlers/ProxyHandler";
+import MegaMarketParser from "./services/parser/parsers/MegaMarketParser";
+import RabbitMQConnection from "./infrastructure/rabbitmq/RabbitMQConnection";
 
 export default class App {
 
@@ -22,6 +23,8 @@ export default class App {
     private readonly redisClient: RedisClient;
     private readonly browserService: BrowserService;
 
+    private readonly rabbitMQConnection: RabbitMQConnection;
+
     private readonly proxyScheduler: ProxyScheduler;
     private readonly proxyHandler: ProxyHandler;
 
@@ -29,7 +32,7 @@ export default class App {
 
 
     // @ts-ignore
-    constructor({webServer, redisClient, browserService, parserRegistry, prismaService, proxyScheduler, proxyHandler}) {
+    constructor({webServer, redisClient, browserService, parserRegistry, prismaService, proxyScheduler, proxyHandler, rabbitMQConnection}) {
         this.logger = loggerFactory(this);
 
         this.prismaService = prismaService;
@@ -41,6 +44,8 @@ export default class App {
         this.proxyHandler = proxyHandler;
 
         this.parserRegistry = parserRegistry;
+
+        this.rabbitMQConnection = rabbitMQConnection;
     }
 
     public async init() {
@@ -48,12 +53,15 @@ export default class App {
         await this.prismaService.connect();
         await this.redisClient.init();
 
+        await this.rabbitMQConnection.connect();
+        await this.rabbitMQConnection.setup();
+
         this.webServer.init();
         this.webServer.start();
 
         await this.browserService.init();
 
-        this.parserRegistry.registerParser("alikson", AliksonParser);
+        this.parserRegistry.registerParser("megaMarket", MegaMarketParser);
         this.parserRegistry.registerParser("magnitMarket", MagnitMarketParser);
         this.parserRegistry.registerParser("yandexMarket", YandexMarketParser);
         this.parserRegistry.registerParser("wildberries", WildBerriesParser);

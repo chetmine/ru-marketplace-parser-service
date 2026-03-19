@@ -1,4 +1,4 @@
-import {Browser, BrowserContext, chromium, Locator, Page} from "playwright";
+import {Locator, Page} from "playwright";
 import {MarketPlaceParser, Product, ProductFeature} from "../MarketPlaceParser";
 import ProductSearchService from "../../ProductSearchService";
 
@@ -6,8 +6,17 @@ export default class OzonParser extends MarketPlaceParser {
 
     public marketplaceUrl = "https://www.ozon.ru";
 
+    private readonly isSaveScreenshots: boolean;
 
-    public async fetchProducts(page: Page, product: string): Promise<Product[]> {
+    // @ts-ignore
+    constructor({config}) {
+        super();
+
+        this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+    }
+
+
+    public async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<Product[]> {
 
         const baseUrl = "https://www.ozon.ru";
         await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
@@ -19,27 +28,22 @@ export default class OzonParser extends MarketPlaceParser {
 
         await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-search.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-search.png` });
 
         await page.waitForSelector('div[data-widget="tileGridDesktop"]');
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-search-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-search-loaded.png` });
 
         const container = page.locator('div[data-widget="tileGridDesktop"]');
 
         if (await container.count() === 0) throw new Error("Product list not found. Maybe selector is invalid.")
 
-        const cards = container.locator('> div');
-        const count = await cards.count();
+        const cards = await container.locator('> div').all();
+        cards.splice(10);
 
-        const products: Product[] = [];
-
-        for (let i = 0; i < count; i++) {
-            const card = cards.nth(i);
-            products.push(await this.parseProduct(card));
-        }
-
-        return products;
+        return await Promise.all(
+            cards.map((cardElement) => (this.parseProduct(cardElement)))
+        );
     }
 
     public async findProduct(page: Page, productName: string, products?: Product[]): Promise<Product | null> {
@@ -96,11 +100,11 @@ export default class OzonParser extends MarketPlaceParser {
 
         await page.goto(productLink, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-info.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-info.png` });
 
         const productContainer = page.locator('div[data-widget="container"]');
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-info-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-info-loaded.png` });
 
         if (await productContainer.count() === 0) throw new Error("Product info not found. Maybe selector is invalid.");
 
@@ -109,7 +113,7 @@ export default class OzonParser extends MarketPlaceParser {
 
         await page.goto(featuresUrl, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/${product}.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-features.png` });
 
         await page.waitForSelector('div[data-widget="webCharacteristics"]', {
             timeout: 5000,
@@ -264,47 +268,5 @@ export default class OzonParser extends MarketPlaceParser {
             scoresInfo: scoresInfo,
             isAvailable: !!price
         }
-    }
-
-    public async fetchAvailableFilters(productsPage: Page): Promise<any> {
-        const allFiltersOpenButton = productsPage.locator("aside > button");
-        await allFiltersOpenButton.click();
-
-        await productsPage.waitForSelector(`div[data-widget="blockVertical"] > div[data-widget="filtersDesktop"] span`, {
-            timeout: 1000,
-        });
-
-
-
-        const filtersElement = productsPage.locator(`div[data-widget="blockVertical"] > div[data-widget="filtersDesktop"]`);
-        const basePath = filtersElement.locator('div > svg > path');
-
-        const pathsWithLabel = filtersElement.filter({
-            has: productsPage.locator('xpath=ancestor::label')
-        });
-
-        const pathsWithoutLabel = filtersElement.filter({
-            hasNot: productsPage.locator('xpath=ancestor::label')
-        });
-
-        const elementsWithLabel = await pathsWithLabel.all();
-        const elementsWithoutLabel = await pathsWithoutLabel.all();
-
-
-        let text = "";
-
-        const pathCount = await basePath.count();
-        const count = await pathsWithoutLabel.count();
-
-        for (const element of elementsWithoutLabel) {
-            await element.locator('xpath=ancestor::div[1]').click();
-            await this.randomDelay(25, 50);
-        }
-
-        const textData = filtersElement.textContent({ timeout: 2000 });
-
-        await productsPage.screenshot({ path: `${process.cwd()}/screenshots/ozon/filters.png` });
-
-        return textData + "\n" + text;
     }
 }

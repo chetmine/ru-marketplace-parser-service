@@ -42,6 +42,12 @@ export default class ProxyDataRepo {
         });
     }
 
+    public async findByHost(host: string): Promise<ProxyData[]> {
+        return this.prismaService.proxyData.findMany({
+            where: { host },
+        });
+    }
+
     public async findAll(params: {
         skip?: number;
         take?: number;
@@ -63,4 +69,10 @@ export default class ProxyDataRepo {
             where: { id },
         });
     }
+
+    public async deleteAll() {
+        return this.prismaService.proxyData.deleteMany({});
+    }
+
+
 }

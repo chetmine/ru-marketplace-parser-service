@@ -8,14 +8,23 @@ import ProductSearchService from "../../ProductSearchService";
 export default class WildBerriesParser extends MarketPlaceParser {
     marketplaceUrl: string = "https://www.wildberries.ru";
 
+    private readonly isSaveScreenshots: boolean;
+
+    // @ts-ignore
+    constructor({config}) {
+        super();
+
+        this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+    }
+
     public async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
         await page.goto(productPath, { waitUntil: 'domcontentloaded' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-info.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-info.png` });
 
         await page.waitForSelector('.product-page');
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-info-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-info-loaded.png` });
 
         const pageContentElement = page.locator('[class*="productPageContent--"]')
 
@@ -56,8 +65,9 @@ export default class WildBerriesParser extends MarketPlaceParser {
 
         const deliveryDate = await this.safeFetchText(
             pageContent
-                .locator('[class*="deliveryTitleWrapper--"]')
+                .locator('[class*="deliveryTitleWrapper"]')
                 .locator('span')
+                .first()
         );
 
         let scoresInfo;
@@ -85,17 +95,7 @@ export default class WildBerriesParser extends MarketPlaceParser {
         const featureTRs = await featuresDiv.locator('tr').all();
 
         const features: ProductFeature[] = await Promise.all(
-            featureTRs.map(
-                async (tbody) => {
-                    const featureType = await tbody.locator('th').first().textContent({timeout: 100})
-                    const featureValue = await tbody.locator('td').first().textContent({timeout: 100})
-
-                    return {
-                        name: featureType?.trim() as string,
-                        value: featureValue?.trim() as string,
-                    }
-                }
-            )
+            featureTRs.map(this.parseFeature)
         );
 
         return {
@@ -109,7 +109,25 @@ export default class WildBerriesParser extends MarketPlaceParser {
             deliveryDate: deliveryDate,
             oldPrice: Number.parseFloat(<string>oldPriceString?.replace(/\s/g, "").replace("₽", "")),
             scoresInfo: <ScoresInfo>scoresInfo,
-            features: features,
+            features: features.filter(feature => !!feature.value),
+        }
+    }
+
+    private async parseFeature(featureElement: Locator) {
+
+        try {
+            const featureType = await featureElement.locator('th').first().textContent({timeout: 100})
+            const featureValue = await featureElement.locator('td').first().textContent({timeout: 100})
+
+            return {
+                name: featureType?.trim() as string,
+                value: featureValue?.trim() as string,
+            }
+        } catch (e: any) {
+            return {
+                name: "",
+                value: ""
+            }
         }
     }
 
@@ -126,38 +144,28 @@ export default class WildBerriesParser extends MarketPlaceParser {
         return { average, count };
     }
 
-    async fetchProducts(page: Page, product: string): Promise<Product[]> {
+    async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<Product[]> {
         await page.goto(this.marketplaceUrl, { waitUntil: 'domcontentloaded' });
         await this.randomDelay();
 
         const encoded = encodeURI(product);
         const url = `${this.marketplaceUrl}/catalog/0/search.aspx?search=${encoded}`;
 
-        await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await page.goto(url, { waitUntil: 'load' });
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-search.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-search.png` });
 
-        await page.waitForSelector('div[class="product-card-list"]');
+        await page.waitForSelector('.catalog-page__content');
 
-        await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-search-loaded.png` });
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/wildberries/product-search-loaded.png` });
 
-        const container = page.locator('div[class="product-card-list"]');
+        const container = page.locator('.catalog-page__content');
         if (await container.count() === 0) throw new Error("Product list not found. Maybe selector is invalid.")
 
-        const cards = container.locator('article');
+        const cards = await container.locator('article').all();
+        cards.splice(10);
 
-        const count = await cards.count();
-
-        const promises: Promise<Product>[] = [];
-
-        for (let i = 0; i < count; i++) {
-            const card = cards.nth(i);
-            promises.push(
-                this.parseProduct(card),
-            )
-        }
-
-        return Promise.all(promises);
+        return await Promise.all(cards.map(this.parseProduct.bind(this)));
     }
 
     private async parseProduct(card: Locator): Promise<Product> {
@@ -172,7 +180,10 @@ export default class WildBerriesParser extends MarketPlaceParser {
         const brandNameString = await this.safeFetchText(
             card.locator('span[class="product-card__brand"]').first()
         )
-        const productNameString = await card.locator('span[class="product-card__name"]').first().textContent({ timeout: 1000 });
+
+        const productNameString = <string> await this.safeFetchText(
+            card.locator('.product-card__name').first()
+        );
 
         const productLink = await card.locator('a[class="product-card__link j-card-link j-open-full-product-card"]').first().getAttribute('href');
         const imageLink = await card.locator('img[class="j-thumbnail"]').first().getAttribute("src");
@@ -200,7 +211,4 @@ export default class WildBerriesParser extends MarketPlaceParser {
         }
     }
 
-    fetchAvailableFilters(productsPage: Page): Promise<any> {
-        return Promise.resolve(undefined);
-    }
 }

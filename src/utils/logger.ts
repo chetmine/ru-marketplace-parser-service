@@ -1,9 +1,10 @@
 import winston, {createLogger} from "winston";
 
 export const loggerFactory = (context: any) => {
-    const className = context?.constructor?.name || 'Unknown?';
+    const className = context?.constructor?.name || '*';
 
     return createLogger({
+        level: 'silly',
         format: winston.format.combine(
             winston.format.colorize(),
             winston.format.timestamp({format: 'YYYY-MM-DD HH:mm:ss'}),

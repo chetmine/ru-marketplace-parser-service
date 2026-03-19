@@ -48,14 +48,13 @@ export interface ProductFeature {
 }
 
 export abstract class MarketPlaceParser {
-    constructor(public marketplaceUrl: string) {}
 
-    abstract fetchProducts(page: Page, product: string): Promise<ProductPreview[]>;
+    abstract fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<ProductPreview[]>;
     abstract fetchProductInfo(page: Page, productPath: string): Promise<Product>;
-    abstract fetchAvailableFilters(productsPage: Page): Promise<any>;
+
 
     public async findProduct(page: Page, productName: string, products?: Product[]): Promise<Product | null> {
-        const foundProducts = products || await this.fetchProducts(page, productName);
+        const foundProducts = products || await this.fetchProducts(page, productName, false);
 
         const matchedProduct = ProductSearchService.search(productName, foundProducts);
         if (!matchedProduct) return null;
@@ -71,11 +70,26 @@ export abstract class MarketPlaceParser {
         }
     }
 
+    protected async safeGetAttribute(element: Locator, attribute: string, timeout = 1000) {
+        try {
+            return await element.getAttribute(attribute, { timeout });
+        } catch (e) {
+            return null;
+        }
+    }
+
     protected async randomDelay(min = 1000, max = 3000): Promise<void> {
         const delay = Math.random() * (max - min) + min;
 
         return new Promise((resolve, reject) => {
             setTimeout(() => resolve(), delay);
         });
+    }
+}
+
+export class CaptchaError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'CaptchaError';
     }
 }

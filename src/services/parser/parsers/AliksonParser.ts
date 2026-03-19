@@ -5,12 +5,8 @@ export default class AliksonParser extends MarketPlaceParser {
 
     marketplaceUrl = 'https://alikson.ru'
 
-    fetchAvailableFilters(productsPage: Page): Promise<any> {
-        return Promise.resolve(undefined);
-    }
-
     async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
-        await page.goto(productPath, { waitUntil: 'domcontentloaded' });
+        await page.goto(productPath, { waitUntil: 'load' });
 
         await page.waitForSelector(`.product`)
 
@@ -82,12 +78,12 @@ export default class AliksonParser extends MarketPlaceParser {
         );
 
         return {
-            name: featureName.trim(),
-            value: featureValue.trim(),
+            name: featureName?.trim(),
+            value: featureValue?.trim(),
         };
     }
 
-    async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
+    async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<ProductPreview[]> {
         const encoded = encodeURI(product);
         const url = `${this.marketplaceUrl}/search/?q=${encoded}`;
 

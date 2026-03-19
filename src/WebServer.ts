@@ -4,6 +4,8 @@ import {loggerFactory} from "./utils/logger";
 import ProductRoutes from "./routes/ProductRoutes";
 import cors from 'cors'
 import ProxyRoutes from "./routes/ProxyRoutes";
+import BrowserService from "./services/BrowserService";
+import BrowserRoutes from "./routes/BrowserRoutes";
 
 export interface WebServerConfig {
     port: number;
@@ -20,15 +22,17 @@ export default class WebServer {
 
     private readonly productRoutes: ProductRoutes;
     private readonly proxyRoutes: ProxyRoutes;
+    private readonly browserRoutes: BrowserRoutes;
 
     // @ts-ignore
-    constructor({logger, config, productRoutes, proxyRoutes}) {
+    constructor({logger, config, productRoutes, proxyRoutes, browserRoutes}) {
         this.logger = loggerFactory(this);
 
         this.config = config;
 
         this.productRoutes = productRoutes;
         this.proxyRoutes = proxyRoutes;
+        this.browserRoutes = browserRoutes;
     }
 
     public init() {
@@ -57,6 +61,7 @@ export default class WebServer {
     private setupRoutes() {
         this.app.use(`/api/v1/product`, this.productRoutes.setupRoutes());
         this.app.use(`/api/v1/proxy`, this.proxyRoutes.setupRoutes());
+        this.app.use(`/api/v1/browser`, this.browserRoutes.setupRoutes());
     }
 
     private setupErrorHandler() {
