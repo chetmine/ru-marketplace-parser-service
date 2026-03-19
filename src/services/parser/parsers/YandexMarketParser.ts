@@ -123,7 +123,7 @@ export default class YandexMarketParser extends MarketPlaceParser {
         };
     }
 
-    async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<ProductPreview[]> {
+    async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
         const encoded = encodeURI(product);
         const url = `https://market.yandex.ru/search?text=${encoded}`;
 
@@ -131,9 +131,7 @@ export default class YandexMarketParser extends MarketPlaceParser {
 
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search.png` });
 
-        await page.waitForSelector('div[data-apiary-widget-name="@marketfront/VirtualizeSerp"]', {
-            timeout: 5000,
-        });
+        await page.waitForSelector('div[data-apiary-widget-name="@marketfront/VirtualizeSerp"]');
 
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/yandexMarket/product-search-loaded.png` });
 
