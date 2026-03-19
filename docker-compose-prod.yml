@@ -1,10 +1,20 @@
 services:
   parser:
     container_name: parser-microservice
-    image: chetminez/ru-marketplace-parser
+#    image: chetminez/ru-marketplace-parser
+    build: .
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
     env_file:
       - .env.prod
     restart: always
     shm_size: 2GB
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4GB
+        reservations:
+          cpus: '1.0'
+          memory: 1GB
+
