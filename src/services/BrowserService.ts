@@ -60,15 +60,21 @@ export default class BrowserService {
 
         this.redis = this.redisClient.getInstance();
 
+
         this.browser = await firefox.launch({
             ...await launchOptions({
-                headless: true,
+                os: this.uaOs,
+                // @ts-ignore
+                virtual_display: true,
+                headless: true
             })
         });
 
         cron.schedule('* * * * *', this.cleanup.bind(this));
 
         this.logger.info(`Successfully ran ${this.browser.browserType().name()} browser.`);
+
+        //this.launchTest();
     }
 
 
@@ -292,6 +298,11 @@ export default class BrowserService {
         await context.close();
 
         return fingerprint;
+    }
+
+    async launchTest() {
+        const { context } = await this.getContextData("__test__");
+        const page = await context.newPage();
     }
 
     private async loadFromRedis(userId: string): Promise<ContextData | null> {
