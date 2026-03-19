@@ -68,9 +68,9 @@ JWT_SECRET=STRONG_JWT_HASH
 docker-compose -f docker-compose-prod.yml up -d --build
 ```
 
-### Запуск через Docker (Development)
+### Запуск через Инфраструктуры для проекта (Postgres, RabbitMQ, Redis) Docker (Development)
 ```bash
-docker-compose -f docker-compose-dev.yml up -d --build
+docker-compose -f docker-compose-infra-dev.yml up -d --build
 ```
 
 ### Локальный запуск (без Docker)
