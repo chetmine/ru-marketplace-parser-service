@@ -125,7 +125,7 @@ export default class ProductAggregatorService {
         }
 
         const cachedPreviews = await this.productCacheService.getPreview(query, options?.marketplace)
-            || await this.searchProducts(id, query, { ...options, denyMessagePublishing: true })
+            || await this.searchProducts(id, query, { ...options, denyMessagePublishing: true, retryOnParserExposed: false })
         ;
 
         const products = await this.executeWithRetry(
@@ -269,6 +269,8 @@ export default class ProductAggregatorService {
 
                         if (!succeededMarketplaceNames.find(name => name === parser.getName())) succeededMarketplaceNames.push(parser.getName());
 
+                        if (!result) return result;
+
                         if (Array.isArray(result) && !options?.denyMessagePublishing) {
                             this.logger.debug(`Published parser products ${result.length} to message-broker`);
 
@@ -307,9 +309,7 @@ export default class ProductAggregatorService {
 
             this.logger.debug(`Succeeded parser results: ${succeededMarketplaceNames}`);
 
-            // this.logger.debug(`excludedParsersData Data before: ${this.excludedParsersData.get(sessionId)}`);
             this.excludedParsersData.set(sessionId, [...new Set([...this.excludedParsersData.get(sessionId) || [], ...succeededMarketplaceNames])])
-            // this.logger.debug(`excludedParsersData Data after: ${this.excludedParsersData.get(sessionId)}`);
 
             const failedResults = results.filter(r => r.status === 'rejected');
             if (failedResults.length > 0 && this.hasProxyErrors(failedResults)) {
