@@ -24,7 +24,7 @@ export default class App {
     private readonly redisClient: RedisClient;
     private readonly browserService: BrowserService;
 
-    private readonly taskConsumber: TaskConsumer;
+    private readonly taskConsumer: TaskConsumer;
 
     private readonly rabbitMQConnection: RabbitMQConnection;
 
@@ -50,10 +50,11 @@ export default class App {
 
         this.rabbitMQConnection = rabbitMQConnection;
 
-        this.taskConsumber = taskConsumer;
+        this.taskConsumer = taskConsumer;
     }
 
     public async init() {
+        this.taskConsumer.setupEventListeners();
 
         await this.prismaService.connect();
         await this.redisClient.init();
@@ -70,12 +71,9 @@ export default class App {
         this.parserRegistry.registerParser("ozon", OzonParser);
 
         await this.rabbitMQConnection.connect();
-        await this.rabbitMQConnection.setup();
 
         this.proxyScheduler.init();
         this.proxyHandler.init();
-
-        await this.taskConsumber.startConsuming();
 
         this.logger.info("App successfully started");
     }
