@@ -12,12 +12,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 
-CMD ["echo", "Installing firefox for playwright..."]
-RUN npx playwright install firefox
-CMD ["echo", "Installing camoufox..."]
-RUN npx camoufox-js fetch
+RUN echo "Installing firefox for playwright..." && npx playwright install firefox
+RUN echo "Installing camoufox..." && npx camoufox-js fetch
 
-CMD ["echo", "Installing additional dependencies for camoufox..."]
+RUN echo "Installing additional dependencies for camoufox..."
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     libgtk-3-0 \
@@ -31,6 +29,8 @@ COPY --from=builder /app/prisma.config.ts ./
 COPY --from=builder /app/scripts/entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
+RUN ls -la
+
 ENTRYPOINT ["./entrypoint.sh"]
 
-CMD ["echo", "Container started."]
+RUN echo "Container started."
