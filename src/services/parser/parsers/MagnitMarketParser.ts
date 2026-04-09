@@ -6,12 +6,14 @@ export default class MagnitMarketParser extends MarketPlaceParser {
 
 
     private readonly isSaveScreenshots: boolean;
+    private readonly notRequiredTimeout: number;
 
     // @ts-ignore
     constructor({config, name}) {
         super(name);
 
         this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+        this.notRequiredTimeout = config.NOT_REQUIRED_TIMEOUT;
     }
 
     marketplaceUrl: string = "https://mm.ru";
@@ -53,15 +55,23 @@ export default class MagnitMarketParser extends MarketPlaceParser {
 
         const oldPriceString = await this.safeFetchText(
             card.locator('.currency_crossed-out'),
-            50
+            this.notRequiredTimeout
         );
 
-        const href = <string> await card.getAttribute('href');
+        const href = <string> await this.safeGetAttribute(
+            card,
+            "href",
+        )
 
-        const imgUrl = await card.locator('img').first().getAttribute('src');
+        const imgUrl = await this.safeGetAttribute(
+            card.locator('img').first(),
+            "src",
+            this.notRequiredTimeout
+        )
 
         const deliveryDate = await this.safeFetchText(
             card.locator('.add-to-cart-button').first(),
+            this.notRequiredTimeout
         );
 
         return {
@@ -72,7 +82,7 @@ export default class MagnitMarketParser extends MarketPlaceParser {
             imgUrl: imgUrl,
             deliveryDate: deliveryDate?.trim(),
             isAvailable: !!priceString,
-            marketplace: "magnitMarket"
+            marketplace: this.getName()
         }
     }
 
@@ -101,23 +111,31 @@ export default class MagnitMarketParser extends MarketPlaceParser {
         );
 
         const oldPriceString = await this.safeFetchText(
-            productContainer.locator(`.price .currency.full-price`)
+            productContainer.locator(`.price .currency.full-price`),
+            this.notRequiredTimeout
         );
 
-        const imgUrl = await productContainer.locator('img[class="main-photo__content__image"]').first().getAttribute('src');
+        const imgUrl = await this.safeGetAttribute(
+            productContainer.locator('img[class="main-photo__content__image"]').first(),
+            "src",
+            this.notRequiredTimeout
+        )
 
         const deliveryDate = await this.safeFetchText(
-            productContainer.locator(`.label--date--time`)
+            productContainer.locator(`.label--date--time`),
+            this.notRequiredTimeout
         );
 
         let scoresInfo;
 
         const averageString = await this.safeFetchText(
-            productContainer.locator(`.rating .rating-value`)
+            productContainer.locator(`.rating .rating-value`),
+            this.notRequiredTimeout
         );
 
         const countString = await this.safeFetchText(
-            productContainer.locator(`.stats-container .reviews`)
+            productContainer.locator(`.stats-container .reviews`),
+            this.notRequiredTimeout
         );
 
         if (averageString && countString) {

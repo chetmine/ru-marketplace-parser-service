@@ -1,7 +1,6 @@
 import {MarketPlaceParser, Product, ProductFeature, ScoresInfo} from "../MarketPlaceParser";
 import {Locator, Page} from "playwright";
 import * as process from "node:process";
-import ProductSearchService from "../../ProductSearchService";
 
 
 
@@ -9,12 +8,14 @@ export default class WildBerriesParser extends MarketPlaceParser {
     marketplaceUrl: string = "https://www.wildberries.ru";
 
     private readonly isSaveScreenshots: boolean;
+    private readonly notRequiredTimeout: number;
 
     // @ts-ignore
     constructor({config, name}) {
         super(name);
 
         this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+        this.notRequiredTimeout = config.NOT_REQUIRED_TIMEOUT;
     }
 
     public async fetchProductInfo(page: Page, productPath: string): Promise<Product> {
@@ -38,6 +39,7 @@ export default class WildBerriesParser extends MarketPlaceParser {
 
         const brand = await this.safeFetchText(
             pageContent.locator('span[class*="productHeaderBrandText--"]'),
+            this.notRequiredTimeout
         );
 
         const priceString = <string> await Promise.race(
@@ -53,27 +55,25 @@ export default class WildBerriesParser extends MarketPlaceParser {
 
         const oldPriceString = await this.safeFetchText(
             pageContent.locator('[class*="priceBlockOldPrice--"]').first(),
+            this.notRequiredTimeout
         );
 
-        const imageUrl = await pageContent
-            .locator('[class*="mainSlide--"]')
-            .locator('[class*="imgContainer--"]')
-            .locator('img')
-            .first()
-            .getAttribute('src')
-        ;
+        const imageUrl = await this.safeGetAttribute(
+            pageContent.locator('[class*="mainSlide--"]').locator('[class*="imgContainer--"]').locator('img').first(),
+            "src",
+            this.notRequiredTimeout
+        );
 
         const deliveryDate = await this.safeFetchText(
-            pageContent
-                .locator('[class*="deliveryTitleWrapper"]')
-                .locator('span')
-                .first()
+            pageContent.locator('[class*="deliveryTitleWrapper"]').locator('span').first(),
+            this.notRequiredTimeout
         );
 
         let scoresInfo;
 
         const scoresInfoString = await this.safeFetchText(
-            pageContent.locator('span[class*="productReviewRating--"]')
+            pageContent.locator('span[class*="productReviewRating--"]'),
+            this.notRequiredTimeout
         );
 
         if (scoresInfoString) {
@@ -100,7 +100,7 @@ export default class WildBerriesParser extends MarketPlaceParser {
 
         return {
             name: name.trim(),
-            marketplace: 'wildberries',
+            marketplace: this.getName(),
             brand: brand,
             price: Number.parseFloat(<string>priceString?.replace(/\s/g, "").replace("₽", "")),
             link: page.url(),
@@ -174,11 +174,13 @@ export default class WildBerriesParser extends MarketPlaceParser {
         );
 
         const oldPriceString = await this.safeFetchText(
-            card.locator('del').first()
+            card.locator('del').first(),
+            this.notRequiredTimeout
         );
 
         const brandNameString = await this.safeFetchText(
-            card.locator('span[class="product-card__brand"]').first()
+            card.locator('span[class="product-card__brand"]').first(),
+            this.notRequiredTimeout
         )
 
         const productNameString = <string> await this.safeFetchText(
@@ -186,10 +188,15 @@ export default class WildBerriesParser extends MarketPlaceParser {
         );
 
         const productLink = await card.locator('a[class="product-card__link j-card-link j-open-full-product-card"]').first().getAttribute('href');
-        const imageLink = await card.locator('img[class="j-thumbnail"]').first().getAttribute("src");
+        const imageLink = await this.safeGetAttribute(
+            card.locator('img[class="j-thumbnail"]').first(),
+            "src",
+            this.notRequiredTimeout
+        )
 
         const deliveryDateString = await this.safeFetchText(
-            card.locator('a[class="product-card__add-basket j-add-to-basket orderLink--tNgvO btn-main"]').first()
+            card.locator('a[class="product-card__add-basket j-add-to-basket orderLink--tNgvO btn-main"]').first(),
+            this.notRequiredTimeout
         );
 
         const price= Number.parseInt(<string>priceString?.replace(/\s/g, "").replace("₽", ""));
@@ -197,7 +204,7 @@ export default class WildBerriesParser extends MarketPlaceParser {
 
         return {
             name: `${productNameString}`.replace("/", "").trim(),
-            marketplace: "wildberries",
+            marketplace: this.getName(),
             brand: `${brandNameString}`.trim(),
 
             price: price,

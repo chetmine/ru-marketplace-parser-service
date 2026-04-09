@@ -6,12 +6,14 @@ export default class MegaMarketParser extends MarketPlaceParser {
     marketplaceUrl: string = "https://megamarket.ru";
 
     private readonly isSaveScreenshots: boolean;
+    private readonly notRequiredTimeout: number;
 
     // @ts-ignore
     constructor({config, name}) {
         super(name);
 
         this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+        this.notRequiredTimeout = config.NOT_REQUIRED_TIMEOUT;
     }
 
 
@@ -44,23 +46,30 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
         const oldPriceString = await this.safeFetchText(
             productContainer.locator(`.crossed-old-price-with-discount__crossed-old-price`),
-            50
+            this.notRequiredTimeout
         );
 
-        const imgUrl = await productContainer.locator('img[class*="base-gallery-slide__inner-image-zoom-slide"]').first().getAttribute('src');
+        const imgUrl = await this.safeGetAttribute(
+            productContainer.locator('img[class*="base-gallery-slide__inner-image-zoom-slide"]').first(),
+            "src",
+            this.notRequiredTimeout
+        )
 
         const deliveryDate = await this.safeFetchText(
-            productContainer.locator(`.sales-block-delivery-type__date`)
+            productContainer.locator(`.sales-block-delivery-type__date`),
+            this.notRequiredTimeout
         );
 
         let scoresInfo;
 
         const averageString = await this.safeFetchText(
-            productContainer.locator(`.pui-rating-display__narrow-text`)
+            productContainer.locator(`.pui-rating-display__narrow-text`),
+            this.notRequiredTimeout
         );
 
         const countString = await this.safeFetchText(
-            productContainer.locator(`.pui-rating-display__text-bullet`)
+            productContainer.locator(`.pui-rating-display__text-bullet`),
+            this.notRequiredTimeout
         );
 
         if (averageString && countString) {
@@ -85,7 +94,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
             deliveryDate: deliveryDate?.trim(),
             scoresInfo: scoresInfo,
             features: features,
-            marketplace: "megaMarket",
+            marketplace: this.getName(),
         }
     }
 
@@ -109,18 +118,18 @@ export default class MegaMarketParser extends MarketPlaceParser {
     }
 
     async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
-        const cleanup = this.setupCaptchaInterceptor(page);
+        // const cleanup = this.setupCaptchaInterceptor(page);
         const captchaRace = (page as any).__captchaPromise;
 
         try {
-            await Promise.race([
-                this.doFetchProducts(page, product),
-                captchaRace,
-            ]);
+            // await Promise.race([
+            //     this.doFetchProducts(page, product),
+            //         // captchaRace,
+            // ]);
 
             return await this.doFetchProducts(page, product);
         } finally {
-            cleanup();
+            // cleanup();
         }
     }
 
@@ -145,17 +154,47 @@ export default class MegaMarketParser extends MarketPlaceParser {
     }
 
     private async doFetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
-        await page.goto(this.marketplaceUrl, { waitUntil: 'domcontentloaded' });
 
-        await page.goto(`https://megamarket.ru/catalog/?q=${encodeURI(product)}`, { waitUntil: 'domcontentloaded' });
-        await this.interceptParse(page);
+        await page.goto(this.marketplaceUrl, { waitUntil: 'load' });
+        // await this.disableIntegrityCheckRequests(page);
 
-        await page.waitForSelector('.catalog-items-list__container');
-        await page.waitForSelector('.catalog-items-list__container > div');
+        const openSearchTabElement = page.locator(`div[class*="desktop-navigation-tabs__item_search"]`);
+        await openSearchTabElement.focus();
+        await this.randomDelay(10, 40)
+        await openSearchTabElement.click();
+
+        const textArea = page.locator(`textarea[class*="search-input__textarea"]`);
+
+        await this.randomDelay(400, 1100);
+        await textArea.focus();
+        await this.randomDelay(200, 500);
+        await textArea.fill(product);
+
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/input-filled.png` });
+
+        await this.randomDelay(50, 200);
+        await page.keyboard.press("Enter");
+
+        if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-started.png` });
+
+        await page.waitForSelector(`.catalog-items-list__container`)
+        await page.waitForSelector(`.catalog-items-list__container > div`)
 
         if (this.isSaveScreenshots) {
             await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-finished.png` });
         }
+
+        // const productCards = await page.locator(`.catalog-items-list__container > div`).all();
+
+        // await page.goto(this.marketplaceUrl, { waitUntil: 'domcontentloaded' });
+        //
+        // await page.goto(`https://megamarket.ru/catalog/?q=${encodeURI(product)}`, { waitUntil: 'domcontentloaded' });
+        // await this.interceptParse(page);
+        //
+        // await page.waitForSelector('.catalog-items-list__container');
+        // await page.waitForSelector('.catalog-items-list__container > div');
+
+
 
         const productCards = await page
             .locator('.catalog-items-list__container div[data-test="product-item"]')
@@ -221,7 +260,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
         const name = <string> await this.safeGetAttribute(
             card.locator(`[class*="catalog-item-regular-desktop__main-info"]`).locator('a').first(),
             'title',
-            1000
+            this.notRequiredTimeout
         );
 
         const priceString = <string> await this.safeFetchText(
@@ -230,29 +269,29 @@ export default class MegaMarketParser extends MarketPlaceParser {
 
         const oldPriceString = await this.safeFetchText(
             card.locator('.crossed-old-price-discount span'),
-            50
+            this.notRequiredTimeout
         );
 
         const href = <string> await this.safeGetAttribute(
             card.locator('a').first(),
             'href',
-            5000
         );
 
         const imgUrl = await this.safeGetAttribute(
             card.locator('img[class*="pui-img"]').first(),
             'src',
-            1000
+            this.notRequiredTimeout
         )
 
         const deliveryDate = await this.safeFetchText(
             card.locator('button[class*="catalog-buy-button__button"]').first(),
+            this.notRequiredTimeout
         );
 
         const isAvailableText = !(await this.safeGetAttribute(
             card.locator(`[class*="catalog-item-image-block_out-of-stock"]`),
             'class',
-            50
+            this.notRequiredTimeout
         ));
 
         const product = {
@@ -263,7 +302,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
             imgUrl: imgUrl,
             deliveryDate: deliveryDate?.trim(),
             isAvailable: isAvailableText,
-            marketplace: "megaMarket",
+            marketplace: this.getName()
         }
 
         return product;

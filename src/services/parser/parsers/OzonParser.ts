@@ -7,16 +7,18 @@ export default class OzonParser extends MarketPlaceParser {
     public marketplaceUrl = "https://www.ozon.ru";
 
     private readonly isSaveScreenshots: boolean;
+    private readonly notRequiredTimeout: number;
 
     // @ts-ignore
     constructor({config, name}) {
         super(name);
 
         this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+        this.notRequiredTimeout = config.NOT_REQUIRED_TIMEOUT;
     }
 
 
-    public async fetchProducts(page: Page, product: string, isPublishResults?: boolean): Promise<Product[]> {
+    public async fetchProducts(page: Page, product: string): Promise<Product[]> {
 
         const baseUrl = "https://www.ozon.ru";
         await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
@@ -42,17 +44,8 @@ export default class OzonParser extends MarketPlaceParser {
         cards.splice(10);
 
         return await Promise.all(
-            cards.map((cardElement) => (this.parseProduct(cardElement)))
+            cards.map(this.parseProduct.bind(this))
         );
-    }
-
-    public async findProduct(page: Page, productName: string, products?: Product[]): Promise<Product | null> {
-        const foundProducts = products || await this.fetchProducts(page, productName);
-
-        const matchedProduct = ProductSearchService.search(productName, foundProducts);
-        if (!matchedProduct) return null;
-
-        return await this.fetchProductInfo(page, matchedProduct[0].link);
     }
 
     private async parseProduct(productCard: Locator): Promise<Product> {
@@ -60,10 +53,17 @@ export default class OzonParser extends MarketPlaceParser {
             hasText: '₽'
         });
 
-        const link = await productCard.locator('a').first().getAttribute('href');
-        const imgUrl = await productCard.locator('img').first().getAttribute('src');
+        const link = await this.safeGetAttribute(
+            productCard.locator('a').first(),
+            "href",
+        );
+        const imgUrl = await this.safeGetAttribute(
+            productCard.locator('img').first(),
+            "src",
+            this.notRequiredTimeout
+        )
 
-        const productName = await productCard.locator('a > div > span').textContent();
+        const productName = await productCard.locator('a > div > span').first().textContent();
 
         const oldPrice = await productCard.locator('span').evaluateAll(spans => {
             const crossed = spans.find(span => {
@@ -81,7 +81,7 @@ export default class OzonParser extends MarketPlaceParser {
 
         return ({
             name: productName || "No data provided.",
-            marketplace: "ozon",
+            marketplace: this.getName(),
 
             price: price,
             link: this.marketplaceUrl + link,
@@ -163,15 +163,10 @@ export default class OzonParser extends MarketPlaceParser {
 
         let avgScoresString;
 
-        try {
-            avgScoresString = await container.locator('div[data-widget="webSingleProductScore"]')
-                .locator('a > div')
-                .first()
-                .textContent({ timeout: 500 })
-            ;
-        } catch (e) {
-
-        }
+        avgScoresString = await this.safeFetchText(
+            container.locator('div[data-widget="webSingleProductScore"]').locator('a > div').first(),
+            this.notRequiredTimeout
+        );
 
         const avgScore = avgScoresString
             ? Number.parseFloat(avgScoresString?.split(' ')[0])
@@ -190,7 +185,6 @@ export default class OzonParser extends MarketPlaceParser {
             } : undefined;
 
         const webPriceElement = container.locator('div[data-widget="webPrice"]');
-
 
         const priceString = await this.safeFetchText(
             webPriceElement.locator('span.tsHeadline600Large').first()
@@ -216,20 +210,17 @@ export default class OzonParser extends MarketPlaceParser {
 
         if (!productName) throw new Error("Cannot find product name.");
 
-        const productImage = await container.locator('div[data-widget="webGallery"]')
-            .locator('img[fetchpriority="high"]')
-            .first()
-            .getAttribute("src")
-        ;
-
-        if (!productImage) throw new Error("Cannot find product name.");
-
+        const productImage = await this.safeGetAttribute(
+            container.locator('div[data-widget="webGallery"]').locator('img[fetchpriority="high"]').first(),
+            "src",
+            this.notRequiredTimeout
+        );
 
         let deliveryDate;
 
         try {
             await page.waitForSelector('div[data-widget="webAddToCart"] span.tsCompact400Small', {
-                timeout: 3000,
+                timeout: this.notRequiredTimeout,
             });
 
             const deliveryData = container.locator('div[data-widget="webAddToCart"]')
@@ -257,7 +248,7 @@ export default class OzonParser extends MarketPlaceParser {
 
         return {
             name: productName.trim(),
-            marketplace: 'ozon',
+            marketplace: this.getName(),
 
             price: price,
             link: currentLink,
