@@ -6,12 +6,14 @@ export default class YandexMarketParser extends MarketPlaceParser {
     marketplaceUrl: string = "https://market.yandex.ru";
 
     private readonly isSaveScreenshots: boolean;
+    private readonly notRequiredTimeout: number;
 
     // @ts-ignore
     constructor({config, name}) {
         super(name);
 
         this.isSaveScreenshots = config.SAVE_SCREENSHOTS;
+        this.notRequiredTimeout = config.NOT_REQUIRED_TIMEOUT;
     }
 
     //@ts-ignore
@@ -38,6 +40,7 @@ export default class YandexMarketParser extends MarketPlaceParser {
 
         const brand = await this.safeFetchText(
             productContainer.locator(`[data-auto="product-card-vendor"]`),
+            this.notRequiredTimeout
         );
 
         const priceString = <string> await this.safeFetchText(
@@ -46,25 +49,29 @@ export default class YandexMarketParser extends MarketPlaceParser {
 
         const oldPriceString = await this.safeFetchText(
             productContainer.locator(`[data-auto="snippet-price-old"] span`).first(),
+            this.notRequiredTimeout
         );
 
-        const imgUrl = await productContainer.locator(`[data-auto="media-viewer-gallery"] img`).first().getAttribute("src");
+        const imgUrl = await this.safeGetAttribute(
+            productContainer.locator(`[data-auto="media-viewer-gallery"] img`).first(),
+            "src",
+            this.notRequiredTimeout
+        );
 
         const deliveryDate = await this.safeFetchText(
-            productContainer
-                .locator(`[data-zone-name="deliveryVariant"]`).first()
-                .locator("span").first(),
+            productContainer.locator(`[data-zone-name="deliveryVariant"]`).first().locator("span").first(),
+            this.notRequiredTimeout
         );
 
 
         let scoresInfo;
         let scoresString;
 
-        try {
-            scoresString = await productContainer.locator(`a[data-auto="product-rating"]`).first().getAttribute("aria-label");
-        } catch (e) {
-
-        }
+        scoresString = await this.safeGetAttribute(
+            productContainer.locator(`a[data-auto="product-rating"]`).first(),
+            "aria-label",
+            this.notRequiredTimeout
+        );
 
         if (scoresString) {
             const match = scoresString.match(/(\d+\.?\d*)\s*из\s*(\d+)/);
@@ -95,7 +102,7 @@ export default class YandexMarketParser extends MarketPlaceParser {
             link: page.url(),
             imgUrl: imgUrl,
             isAvailable: !!priceString,
-            marketplace: "yandexMarket",
+            marketplace: this.getName(),
             deliveryDate: deliveryDate,
             scoresInfo: scoresInfo ? scoresInfo : undefined,
             features: features
@@ -156,17 +163,26 @@ export default class YandexMarketParser extends MarketPlaceParser {
             productElement.locator(`[data-auto="snippet-price-current"] span`).first(),
         );
 
-        const internalLink = <string> await productElement.locator(`a[data-auto="galleryLink"]`).getAttribute('href');
+        const internalLink = <string> await this.safeGetAttribute(
+            productElement.locator(`a[data-auto="galleryLink"]`),
+            "href",
+            this.notRequiredTimeout
+        );
 
         const deliveryDate = await this.safeFetchText(
             productElement.locator(`[data-baobab-name="deliveryInfo"] span[class*="ds-text"]`).first(),
+            this.notRequiredTimeout
         )
 
-        const imgUrl = await productElement.locator('img').first().getAttribute('src', { timeout: 1000 });
+        const imgUrl = await this.safeGetAttribute(
+            productElement.locator('img').first(),
+            "src",
+            this.notRequiredTimeout
+        )
 
         return {
             name: name,
-            marketplace: 'yandexMarket',
+            marketplace: this.getName(),
             price: Number.parseInt(priceString?.replace(/\s/g, "")),
             link: `${this.marketplaceUrl}${internalLink}`,
             imgUrl: imgUrl,
