@@ -19,6 +19,7 @@ export default class ParserPublisherService {
     public async publishProductDetailed(
         product: Product,
         sessionId: string,
+        searchId: string,
         error?: string
     ): Promise<void> {
         await this.publisher.publish(
@@ -27,15 +28,16 @@ export default class ParserPublisherService {
                 //error: error ? error : null,
             },
             `marketplace.parser`,
-            sessionId,
+            `${sessionId}:${searchId}`,
         );
 
-        this.logger.debug(`Successfully published products detailed to ${sessionId}`);
+        this.logger.debug(`Successfully published products detailed to ${sessionId}:${searchId}`);
     }
 
     public async publishProductsPreview(
         products: ProductPreview[],
         sessionId: string,
+        searchId: string,
         error?: string
     ): Promise<void> {
         await this.publisher.publish(
@@ -44,14 +46,15 @@ export default class ParserPublisherService {
                 //error: error ? error : null
             },
             'marketplace.parser',
-            sessionId,
+            `${sessionId}:${searchId}`,
         );
 
-        this.logger.debug(`Successfully published products preview to ${sessionId}`);
+        this.logger.debug(`Successfully published products preview to ${sessionId}:${searchId}`);
     }
 
     public async publishParsingFinished(
         sessionId: string,
+        searchId: string,
         error?: string
     ) {
         await this.publisher.publish(
@@ -60,7 +63,7 @@ export default class ParserPublisherService {
                 error: error ? error : null
             },
             'marketplace.parser',
-            sessionId,
+            `${sessionId}:${searchId}`,
         );
     }
 }

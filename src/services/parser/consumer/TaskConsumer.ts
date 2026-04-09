@@ -6,6 +6,7 @@ import {EventEmitter} from "events";
 
 export type ParseTask = {
     sessionId: string
+    searchId: string
     type: 'preview' | 'detailed'
     query: string
     params: TaskParams

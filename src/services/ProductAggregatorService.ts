@@ -34,7 +34,7 @@ export default class ProductAggregatorService {
 
     private readonly logger: Logger;
 
-    private excludedParsersData = new Map<string, string[]>();
+    private succeededParsersData = new Map<string, string[]>();
 
     // @ts-ignore
     constructor({parserRegistry, browserContextManager, parserPublisherService, sessionService, projectConfig, productCacheService}) {
@@ -53,6 +53,7 @@ export default class ProductAggregatorService {
 
     public async searchProducts(
         id: string,
+        searchId: string,
         query: string,
         options?: SearchProductOptions,
     ): Promise<ProductPreview[][]> {
@@ -64,13 +65,14 @@ export default class ProductAggregatorService {
                 for (const marketplacePreviews of cached) {
                     await this.parserPublisherService.publishProductsPreview(
                         <ProductPreview[]><unknown>marketplacePreviews,
+                        searchId,
                         id,
                     ).catch((e: any) => {
                         this.logger.warn(`Failed to publish result: ${e.message}`);
                     })
                 }
 
-                await this.parserPublisherService.publishParsingFinished(id);
+                await this.parserPublisherService.publishParsingFinished(id, searchId);
             }
 
             this.logger.debug(`Cache HIT for searchProducts: "${query}"`);
@@ -79,9 +81,11 @@ export default class ProductAggregatorService {
 
         const productsPreview = await this.executeWithRetry(
             id,
+            searchId,
             async (context: BrowserContext) => {
                 return await this.executeSearch(
                     id,
+                    searchId,
                     context,
                     query,
                     options,
@@ -99,6 +103,7 @@ export default class ProductAggregatorService {
 
     public async searchProductDetailed(
         id: string,
+        searchId: string,
         query: string,
         options?: SearchProductOptions,
     ) {
@@ -113,11 +118,12 @@ export default class ProductAggregatorService {
                     await this.parserPublisherService.publishProductDetailed(
                         <Product><unknown>item,
                         id,
+                        searchId
                     ).catch((e: any) => {
                         this.logger.warn(`Failed to publish result: ${e.message}`);
                     })
                 }
-                await this.parserPublisherService.publishParsingFinished(id);
+                await this.parserPublisherService.publishParsingFinished(id, searchId);
             }
 
             this.logger.debug(`Cache HIT for searchProductDetailed: "${query}"`);
@@ -125,14 +131,16 @@ export default class ProductAggregatorService {
         }
 
         const cachedPreviews = await this.productCacheService.getPreview(query, options?.marketplace)
-            || await this.searchProducts(id, query, { ...options, denyMessagePublishing: true, retryOnParserExposed: false })
+            || await this.searchProducts(id, searchId, query, { ...options, denyMessagePublishing: true, retryOnParserExposed: false })
         ;
 
         const products = await this.executeWithRetry(
             id,
+            searchId,
             async (context: BrowserContext) => {
                 return await this.executeSearch(
                     id,
+                    searchId,
                     context,
                     query,
                     options,
@@ -153,22 +161,6 @@ export default class ProductAggregatorService {
             )
             : undefined;
 
-        // const prices = products
-        //     .filter((result) => !!result)
-        //     .map(
-        //     (product) => {
-        //         return {
-        //             // @ts-ignore
-        //             [product.marketplace]: {
-        //                 name: product?.name,
-        //                 price: product?.price,
-        //
-        //                 link: product?.link,
-        //             },
-        //         }
-        //     }
-        // );
-
         const filteredProducts = products.filter(product => product?.marketplace !== objectWithMostFeatures?.marketplace);
 
 
@@ -187,13 +179,14 @@ export default class ProductAggregatorService {
 
     private async executeWithRetry<T>(
         id: string,
+        searchId: string,
         executor: (context: BrowserContext) => Promise<T>,
         options?: SearchProductOptions,
     ): Promise<T> {
 
         if (!await this.sessionService.isAvailable(id)) throw new SessionIsBusyError("Session is already in use");
 
-        this.excludedParsersData.delete(id);
+        this.succeededParsersData.delete(searchId);
         const maxAttempts = this.MAX_RETRY_ATTEMPTS;
 
         for (let i = 0; i < maxAttempts; i++) {
@@ -206,8 +199,8 @@ export default class ProductAggregatorService {
                 await this.browserContextManager.saveContext(id, contextData);
                 await this.sessionService.setAsFree(id);
 
-                this.excludedParsersData.delete(id);
-                if (!options?.denyMessagePublishing) await this.parserPublisherService.publishParsingFinished(id);
+                this.succeededParsersData.delete(searchId);
+                if (!options?.denyMessagePublishing) await this.parserPublisherService.publishParsingFinished(id, searchId);
 
                 return data;
             } catch (error: any) {
@@ -225,20 +218,21 @@ export default class ProductAggregatorService {
                     continue;
                 }
 
-                this.excludedParsersData.delete(id);
+                this.succeededParsersData.delete(searchId);
                 throw error;
             } finally {
                 await this.sessionService.setAsFree(id);
             }
         }
 
-        this.excludedParsersData.delete(id);
+        this.succeededParsersData.delete(searchId);
         this.logger.error(`Parsing failed in context ${id}. Too many attempts!`)
         throw new Error(`Failed after ${maxAttempts} attempts due to parsing issues.`);
     }
 
     private async executeSearch<T>(
         sessionId: string,
+        searchId: string,
         context: BrowserContext,
         query: string,
         options: SearchProductOptions | undefined,
@@ -249,7 +243,7 @@ export default class ProductAggregatorService {
             : this.parserRegistry.getAllParsers()
         ;
 
-        const excludedParsers = this.excludedParsersData.get(sessionId);
+        const excludedParsers = this.succeededParsersData.get(searchId);
 
         if (excludedParsers?.length) {
             parsers = parsers.filter(parser => !excludedParsers.includes(parser.getName()))
@@ -277,6 +271,7 @@ export default class ProductAggregatorService {
                             await this.parserPublisherService.publishProductsPreview(
                                 <ProductPreview[]><unknown>result,
                                 sessionId,
+                                searchId
                             ).catch((e: any) => {
                                 this.logger.warn(`Failed to publish result: ${e.message}`);
                             })
@@ -291,6 +286,7 @@ export default class ProductAggregatorService {
                             await this.parserPublisherService.publishProductDetailed(
                                 <Product><unknown>result,
                                 sessionId,
+                                searchId
                             ).catch((e: any) => {
                                 this.logger.warn(`Failed to publish result: ${e.message}`);
                             })
@@ -309,7 +305,7 @@ export default class ProductAggregatorService {
 
             this.logger.debug(`Succeeded parser results: ${succeededMarketplaceNames}`);
 
-            this.excludedParsersData.set(sessionId, [...new Set([...this.excludedParsersData.get(sessionId) || [], ...succeededMarketplaceNames])])
+            this.succeededParsersData.set(searchId, [...new Set([...this.succeededParsersData.get(searchId) || [], ...succeededMarketplaceNames])])
 
             const failedResults = results.filter(r => r.status === 'rejected');
             if (failedResults.length > 0 && this.hasProxyErrors(failedResults)) {

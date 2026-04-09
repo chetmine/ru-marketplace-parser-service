@@ -25,6 +25,7 @@ export default class TaskHandler {
                     // Product Aggregator Service automatically publishes tasks to the queue.
                     await this.productAggregatorService.searchProducts(
                         task.sessionId,
+                        task.searchId,
                         task.query,
                         task.params
                     );
@@ -37,6 +38,7 @@ export default class TaskHandler {
                     // Product Aggregator Service automatically publishes tasks to the queue.
                     await this.productAggregatorService.searchProductDetailed(
                         task.sessionId,
+                        task.searchId,
                         task.query,
                         task.params
                     );
