@@ -4,7 +4,6 @@ import {loggerFactory} from "./utils/logger";
 import ProductRoutes from "./routes/ProductRoutes";
 import cors from 'cors'
 import ProxyRoutes from "./routes/ProxyRoutes";
-import BrowserService from "./services/BrowserService";
 import BrowserRoutes from "./routes/BrowserRoutes";
 
 export interface WebServerConfig {

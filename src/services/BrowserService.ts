@@ -34,8 +34,6 @@ export default class BrowserService {
 
     declare private browser: Browser;
 
-    private contexts: Map<string, ContextData> = new Map();
-
     private readonly logger: Logger;
     private readonly redisClient: RedisClient;
 
@@ -64,17 +62,17 @@ export default class BrowserService {
         this.browser = await firefox.launch({
             ...await launchOptions({
                 os: this.uaOs,
+                humanize: true,
+                geoip: true,
                 // @ts-ignore
-                virtual_display: true,
+                // virtual_display: true,
                 headless: true
             })
         });
 
-        cron.schedule('* * * * *', this.cleanup.bind(this));
+        //cron.schedule('* * * * *', this.cleanup.bind(this));
 
         this.logger.info(`Successfully ran ${this.browser.browserType().name()} browser.`);
-
-        //this.launchTest();
     }
 
 
@@ -109,7 +107,6 @@ export default class BrowserService {
             attachedProxyId: proxyData?.id,
         };
 
-        //this.contexts.set(id, contextData);
         await this.saveToRedis(id, contextData);
 
         return contextData;
@@ -335,22 +332,6 @@ export default class BrowserService {
         }
     }
 
-    private async cleanup() {
-        const now = Date.now();
-        const cleanupTasks: Promise<void>[] = [];
-
-        for (const [userId, data] of this.contexts.entries()) {
-            if (now - data.lastAccessedAt.getTime() > this.contextTTL) {
-                cleanupTasks.push((async () => {
-                    await this.proxyService.unattachProxy(userId);
-                    await this.closeContext(userId);
-                })());
-            }
-        }
-
-        await Promise.all(cleanupTasks);
-    }
-
     async closeContext(id: string) {
         const contextData = await this.getContextData(id);
         const context = contextData.context;
@@ -359,16 +340,5 @@ export default class BrowserService {
             await this.save(id, contextData);
             await context.close();
         }
-    }
-
-    async closeAll() {
-        await Promise.all(
-            Array.from(this.contexts.entries()).map(async ([userId, data]) => {
-                await this.saveToRedis(userId, data);
-                await data.context.close();
-            })
-        );
-
-        this.contexts.clear();
     }
 }

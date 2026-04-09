@@ -23,12 +23,17 @@ export const rabbitMQConfig = {
 
 export const projectConfig = {
     DEBUG_PARSER_ERRORS: true,
-    SAVE_SCREENSHOTS: false,
+    SAVE_SCREENSHOTS: true,
     UA_OS: 'windows',
     CONTEXT_DATA_TTL: 10 * 60 * 1000,
     MAX_REQUESTS_PER_SESSION: 3,
     FETCH_PRODUCTS_MAX_RETRY_ATTEMPTS: 3,
     PLAYWRIGHT_TIMEOUT: 2 * 60 * 1000 // in ms
+}
+
+export const parserConfig = {
+    SAVE_SCREENSHOTS: projectConfig.SAVE_SCREENSHOTS,
+    NOT_REQUIRED_TIMEOUT: 2 * 1000
 }
 
 export const productCacheConfig: ProductCacheConfig = {

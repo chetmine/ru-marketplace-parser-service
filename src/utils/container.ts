@@ -2,7 +2,14 @@ import winston from 'winston'
 import {asClass, asValue, createContainer, InjectionMode} from 'awilix'
 import App from "../App";
 import WebServer from "../WebServer";
-import {productCacheConfig, projectConfig, rabbitMQConfig, redisConfig, webServerConfig} from "../configs/config";
+import {
+    parserConfig,
+    productCacheConfig,
+    projectConfig,
+    rabbitMQConfig,
+    redisConfig,
+    webServerConfig
+} from "../configs/config";
 import ProductController from "../controllers/ProductController";
 import ProductRoutes from "../routes/ProductRoutes";
 import RedisClient from "../redis/RedisClient";
@@ -93,7 +100,7 @@ export function registerContainer() {
         sessionService: asClass(SessionService).singleton(),
 
         parserRegistry: asClass(ParserRegistry).inject(() => ({
-            config: projectConfig
+            config: parserConfig
         })).singleton(),
         productAggregatorService: asClass(ProductAggregatorService).singleton(),
         productCacheService: asClass(ProductCacheService).singleton().inject(() => ({

@@ -1,24 +1,16 @@
-import {Request, Response,NextFunction} from 'express';
-import crypto from 'crypto'
+import {Request, Response} from 'express';
 
 import {Logger} from "winston";
 import {loggerFactory} from "../utils/logger";
-import BrowserService from "../services/BrowserService";
-import {MarketPlaceParser} from "../services/parser/MarketPlaceParser";
-import {faker} from "@faker-js/faker";
 import ProductAggregatorService from "../services/ProductAggregatorService";
 import {SessionIsBusyError} from "../services/SessionService";
 
 export default class ProductController {
 
-    private readonly logger: Logger;
-
     private readonly productAggregatorService: ProductAggregatorService;
 
     // @ts-ignore
     constructor({productAggregatorService}) {
-        this.logger = loggerFactory(this);
-
         this.productAggregatorService = productAggregatorService;
     }
 
@@ -33,6 +25,7 @@ export default class ProductController {
 
             const products = await this.productAggregatorService.searchProducts(
                 id,
+                "test",
                 product,
                 {
                     marketplace: marketplace?.toString(),
@@ -67,6 +60,7 @@ export default class ProductController {
 
             const data = await this.productAggregatorService.searchProductDetailed(
                 id,
+                "test",
                 <string> name,
                 {
                     marketplace: marketplace?.toString(),
