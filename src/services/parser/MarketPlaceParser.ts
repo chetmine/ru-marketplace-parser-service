@@ -1,5 +1,6 @@
 import {Locator, Page} from "playwright";
 import ProductSearchService from "../ProductSearchService";
+import {projectConfig} from "../../configs/config";
 
 
 export interface ProductPreview {
@@ -67,11 +68,7 @@ export abstract class MarketPlaceParser {
         return await this.fetchProductInfo(page, matchedProduct[0].link);
     };
 
-    public getName() {
-        return this.name;
-    }
-
-    protected async safeFetchText(element: Locator, timeout = 1000) {
+    protected async safeFetchText(element: Locator, timeout?: number) {
         try {
             return await element.textContent({ timeout });
         } catch (e) {
@@ -79,7 +76,7 @@ export abstract class MarketPlaceParser {
         }
     }
 
-    protected async safeGetAttribute(element: Locator, attribute: string, timeout = 1000) {
+    protected async safeGetAttribute(element: Locator, attribute: string, timeout?: number) {
         try {
             return await element.getAttribute(attribute, { timeout });
         } catch (e) {
@@ -93,6 +90,10 @@ export abstract class MarketPlaceParser {
         return new Promise((resolve, reject) => {
             setTimeout(() => resolve(), delay);
         });
+    }
+
+    public getName() {
+        return this.name;
     }
 }
 

@@ -14,6 +14,4 @@ import {loggerFactory} from "./utils/logger";
     } catch (e: any) {
         logger.error(`Failed to start app. Reason: ${e.message}`);
     }
-
-
 })()
