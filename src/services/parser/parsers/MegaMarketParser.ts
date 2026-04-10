@@ -118,18 +118,18 @@ export default class MegaMarketParser extends MarketPlaceParser {
     }
 
     async fetchProducts(page: Page, product: string): Promise<ProductPreview[]> {
-        // const cleanup = this.setupCaptchaInterceptor(page);
+        const cleanup = this.setupCaptchaInterceptor(page);
         const captchaRace = (page as any).__captchaPromise;
 
         try {
-            // await Promise.race([
-            //     this.doFetchProducts(page, product),
-            //         // captchaRace,
-            // ]);
+            await Promise.race([
+                this.doFetchProducts(page, product),
+                captchaRace,
+            ]);
 
             return await this.doFetchProducts(page, product);
         } finally {
-            // cleanup();
+            cleanup();
         }
     }
 
@@ -169,11 +169,16 @@ export default class MegaMarketParser extends MarketPlaceParser {
         await textArea.focus();
         await this.randomDelay(200, 500);
         await textArea.fill(product);
+        await this.randomDelay(200, 500);
 
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/input-filled.png` });
 
+        const searchSubmitButton = page.locator(`[class*="tab-bar-search-form__btn-wrapper"] >[class*="pui-button"]`);
+        await searchSubmitButton.focus();
+        await searchSubmitButton.click();
+
         await this.randomDelay(50, 200);
-        await page.keyboard.press("Enter");
+        //await page.keyboard.press("Enter");
 
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-started.png` });
 
@@ -184,22 +189,20 @@ export default class MegaMarketParser extends MarketPlaceParser {
             await page.screenshot({ path: `${process.cwd()}/screenshots/megaMarket/search-finished.png` });
         }
 
-        // const productCards = await page.locator(`.catalog-items-list__container > div`).all();
-
-        // await page.goto(this.marketplaceUrl, { waitUntil: 'domcontentloaded' });
-        //
-        // await page.goto(`https://megamarket.ru/catalog/?q=${encodeURI(product)}`, { waitUntil: 'domcontentloaded' });
-        // await this.interceptParse(page);
-        //
-        // await page.waitForSelector('.catalog-items-list__container');
-        // await page.waitForSelector('.catalog-items-list__container > div');
-
-
-
         const productCards = await page
             .locator('.catalog-items-list__container div[data-test="product-item"]')
             .all();
         productCards.splice(10);
+
+        await this.randomDelay(200, 500);
+
+        const randomProduct = productCards[this.getRandomNumber(10)];
+        if (randomProduct) {
+            await randomProduct.focus();
+            await randomProduct.click( {button: "right" });
+        }
+
+        await this.randomDelay(200, 500);
 
         return Promise.all(productCards.map(card => this.parseProduct(card)));
     }
@@ -232,8 +235,13 @@ export default class MegaMarketParser extends MarketPlaceParser {
                 url.includes('xpvnsulc')
             ;
 
-            if (isCaptcha) {
-                rejectFn?.(new CaptchaError(`Captcha detected!`));
+            const isAutomationDetected = await this.safeFetchText(
+                page.locator(`.support`),
+                3000
+            )
+
+            if (isAutomationDetected) {
+                rejectFn?.(new CaptchaError(`Automation detected, parser exposed!`));
             }
         };
 
@@ -308,4 +316,7 @@ export default class MegaMarketParser extends MarketPlaceParser {
         return product;
     }
 
+    private getRandomNumber(max: number) {
+        return Math.floor(Math.random() * max);
+    }
 }
