@@ -36,7 +36,7 @@ export default class OzonParser extends MarketPlaceParser {
 
         if (this.isSaveScreenshots) await page.screenshot({ path: `${process.cwd()}/screenshots/ozon/product-search-loaded.png` });
 
-        const container = page.locator('div[data-widget="tileGridDesktop"]');
+        const container = page.locator('div[data-widget="tileGridDesktop"] > div');
 
         if (await container.count() === 0) throw new Error("Product list not found. Maybe selector is invalid.")
 
@@ -44,7 +44,7 @@ export default class OzonParser extends MarketPlaceParser {
         cards.splice(10);
 
         return await Promise.all(
-            cards.map(this.parseProduct.bind(this))
+            cards.map((cardElement) => (this.parseProduct(cardElement)))
         );
     }
 
